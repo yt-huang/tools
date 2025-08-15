@@ -426,8 +426,6 @@ install_kubectl() {
                     
                     if sudo apt-get install -y kubectl; then
                         log_success "通过阿里云 APT 镜像源安装成功"
-                        # 配置自动补全
-                        install_kubectl_completion
                         return 0
                     else
                         log_warning "阿里云 APT 镜像源安装失败，尝试二进制下载..."
@@ -451,8 +449,6 @@ EOF
                     
                     if sudo yum install -y kubectl; then
                         log_success "通过阿里云镜像源安装成功"
-                        # 配置自动补全
-                        install_kubectl_completion
                         return 0
                     else
                         log_warning "阿里云镜像源安装失败，尝试二进制下载..."
@@ -560,8 +556,6 @@ EOF
                 return 1
             fi
             
-            # 配置自动补全
-            install_kubectl_completion
             ;;
         "macos")
             if command -v brew >/dev/null 2>&1; then
