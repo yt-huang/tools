@@ -409,15 +409,28 @@ install_kubectl() {
             
             case $OS in
                 "ubuntu"|"debian")
-                    # 使用阿里云镜像源安装 kubectl
+                    # 配置阿里云 Kubernetes APT 镜像源
+                    log_info "配置阿里云 Kubernetes APT 镜像源..."
+                    
+                    # 添加阿里云 Kubernetes 仓库
+                    sudo apt-get update && sudo apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+                    
+                    # 添加阿里云 Kubernetes GPG 密钥
+                    sudo mkdir -p /etc/apt/keyrings
+                    curl -fsSL https://mirrors.aliyun.com/kubernetes/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-archive-keyring.gpg
+                    
+                    # 添加阿里云 Kubernetes 仓库
+                    echo "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://mirrors.aliyun.com/kubernetes/apt/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+                    
                     sudo apt-get update
+                    
                     if sudo apt-get install -y kubectl; then
-                        log_success "通过阿里云镜像源安装成功"
+                        log_success "通过阿里云 APT 镜像源安装成功"
                         # 配置自动补全
                         install_kubectl_completion
                         return 0
                     else
-                        log_warning "阿里云镜像源安装失败，尝试二进制下载..."
+                        log_warning "阿里云 APT 镜像源安装失败，尝试二进制下载..."
                     fi
                     ;;
                 "centos"|"rhel")
@@ -480,12 +493,13 @@ EOF
                 *) log_error "不支持的架构: $arch"; return 1;;
             esac
             
-            # 使用阿里云镜像源下载
+            # 使用国内镜像源下载
             local download_success=false
             local download_urls=(
                 "https://ghproxy.com/https://dl.k8s.io/release/${kubectl_version}/bin/linux/${arch}/kubectl"
                 "https://mirror.ghproxy.com/https://dl.k8s.io/release/${kubectl_version}/bin/linux/${arch}/kubectl"
                 "https://github.91chi.fun/https://dl.k8s.io/release/${kubectl_version}/bin/linux/${arch}/kubectl"
+                "https://hub.fastgit.xyz/kubernetes/kubernetes/releases/download/${kubectl_version}/kubernetes-client-linux-${arch}.tar.gz"
             )
             
             # 创建临时目录
@@ -495,11 +509,25 @@ EOF
             for url in "${download_urls[@]}"; do
                 log_info "尝试从 $url 下载..."
                 
-                # 直接下载二进制文件
-                if sudo curl -L "$url" -o /usr/local/bin/kubectl --connect-timeout 15 --max-time 180 --retry 3; then
-                    download_success=true
-                    log_success "下载成功"
-                    break
+                if [[ "$url" == *".tar.gz" ]]; then
+                    # 处理压缩包下载
+                    if curl -L "$url" -o kubectl.tar.gz --connect-timeout 15 --max-time 180 --retry 3; then
+                        log_info "解压文件..."
+                        tar -xzf kubectl.tar.gz
+                        if [[ -f "kubernetes/client/bin/kubectl" ]]; then
+                            sudo cp kubernetes/client/bin/kubectl /usr/local/bin/
+                            download_success=true
+                            log_success "下载并解压成功"
+                            break
+                        fi
+                    fi
+                else
+                    # 直接下载二进制文件
+                    if sudo curl -L "$url" -o /usr/local/bin/kubectl --connect-timeout 15 --max-time 180 --retry 3; then
+                        download_success=true
+                        log_success "下载成功"
+                        break
+                    fi
                 fi
                 
                 log_warning "从 $url 下载失败，尝试下一个源..."
