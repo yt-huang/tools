@@ -397,6 +397,171 @@ install_nodejs() {
     log_success "Node.js 安装完成"
 }
 
+# 安装 kubectl
+install_kubectl() {
+    local version=${1:-"latest"}
+    log_info "安装 kubectl (版本: $version)..."
+    
+    # 获取 kubectl 版本
+    local kubectl_version=""
+    if [[ "$version" == "latest" ]]; then
+        # 尝试获取最新版本
+        kubectl_version=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt 2>/dev/null)
+        if [[ -z "$kubectl_version" ]]; then
+            # 备用方案：使用已知的稳定版本
+            kubectl_version="v1.28.4"
+            log_warning "无法获取最新版本，使用默认版本: $kubectl_version"
+        else
+            log_info "获取到最新版本: $kubectl_version"
+        fi
+    else
+        # 验证版本格式
+        if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            log_error "无效的版本格式: $version，请使用格式如 v1.28.4"
+            return 1
+        fi
+        kubectl_version="$version"
+    fi
+    
+    case $OS in
+        "ubuntu"|"debian"|"centos"|"rhel")
+            # 确定系统架构
+            local arch=$(uname -m)
+            case $arch in
+                "x86_64") arch="amd64";;
+                "aarch64") arch="arm64";;
+                "arm64") arch="arm64";;
+                *) log_error "不支持的架构: $arch"; return 1;;
+            esac
+            
+            # 尝试多个下载源
+            local download_success=false
+            local download_urls=(
+                "https://dl.k8s.io/release/${kubectl_version}/bin/linux/${arch}/kubectl"
+                "https://ghproxy.com/https://dl.k8s.io/release/${kubectl_version}/bin/linux/${arch}/kubectl"
+                "https://hub.fastgit.xyz/kubernetes/kubernetes/releases/download/${kubectl_version}/kubernetes-client-linux-${arch}.tar.gz"
+            )
+            
+            # 创建临时目录
+            local temp_dir=$(mktemp -d)
+            cd "$temp_dir"
+            
+            for url in "${download_urls[@]}"; do
+                log_info "尝试从 $url 下载..."
+                
+                if [[ "$url" == *".tar.gz" ]]; then
+                    # 处理压缩包下载
+                    if curl -L "$url" -o kubectl.tar.gz --connect-timeout 10 --max-time 60; then
+                        tar -xzf kubectl.tar.gz
+                        if [[ -f "kubernetes/client/bin/kubectl" ]]; then
+                            sudo cp kubernetes/client/bin/kubectl /usr/local/bin/
+                            download_success=true
+                            log_success "下载并解压成功"
+                            break
+                        fi
+                    fi
+                else
+                    # 直接下载二进制文件
+                    if sudo curl -L "$url" -o /usr/local/bin/kubectl --connect-timeout 10 --max-time 60; then
+                        download_success=true
+                        log_success "下载成功"
+                        break
+                    fi
+                fi
+                
+                log_warning "从 $url 下载失败，尝试下一个源..."
+            done
+            
+            # 清理临时目录
+            cd - > /dev/null
+            rm -rf "$temp_dir"
+            
+            if [[ "$download_success" == false ]]; then
+                log_error "所有下载源都失败，无法安装 kubectl"
+                return 1
+            fi
+            
+            # 设置执行权限
+            sudo chmod +x /usr/local/bin/kubectl
+            
+            # 创建软链接
+            sudo ln -sf /usr/local/bin/kubectl /usr/bin/kubectl
+            
+            # 验证安装
+            if kubectl version --client >/dev/null 2>&1; then
+                log_success "kubectl 安装成功: $(kubectl version --client --short)"
+            else
+                log_error "kubectl 安装验证失败"
+                return 1
+            fi
+            ;;
+        "macos")
+            if command -v brew >/dev/null 2>&1; then
+                if [[ "$version" == "latest" ]]; then
+                    brew install kubectl
+                else
+                    # Homebrew 安装特定版本比较复杂，建议使用二进制安装
+                    log_info "使用二进制方式安装指定版本..."
+                    
+                    local arch=$(uname -m)
+                    case $arch in
+                        "x86_64") arch="amd64";;
+                        "arm64") arch="arm64";;
+                        *) log_error "不支持的架构: $arch"; return 1;;
+                    esac
+                    
+                    # 下载 kubectl
+                    local download_url="https://dl.k8s.io/release/${kubectl_version}/bin/darwin/${arch}/kubectl"
+                    if sudo curl -L "$download_url" -o /usr/local/bin/kubectl --connect-timeout 10 --max-time 60; then
+                        sudo chmod +x /usr/local/bin/kubectl
+                        sudo ln -sf /usr/local/bin/kubectl /usr/bin/kubectl
+                        
+                        if kubectl version --client >/dev/null 2>&1; then
+                            log_success "kubectl 安装成功: $(kubectl version --client --short)"
+                        else
+                            log_error "kubectl 安装验证失败"
+                            return 1
+                        fi
+                    else
+                        log_error "下载 kubectl 失败"
+                        return 1
+                    fi
+                fi
+            else
+                log_error "Homebrew 未安装，请先安装 Homebrew"
+                return 1
+            fi
+            ;;
+    esac
+    
+    log_success "kubectl 安装完成"
+    
+    # 配置 kubectl 自动补全
+    log_info "配置 kubectl 自动补全..."
+    case $OS in
+        "ubuntu"|"debian"|"centos"|"rhel")
+            if [[ -f ~/.bashrc ]]; then
+                if ! grep -q "kubectl completion bash" ~/.bashrc; then
+                    echo 'source <(kubectl completion bash)' >> ~/.bashrc
+                    echo 'alias k=kubectl' >> ~/.bashrc
+                    echo 'complete -o default -F __start_kubectl k' >> ~/.bashrc
+                fi
+            fi
+            ;;
+        "macos")
+            if [[ -f ~/.zshrc ]]; then
+                if ! grep -q "kubectl completion zsh" ~/.zshrc; then
+                    echo 'source <(kubectl completion zsh)' >> ~/.zshrc
+                    echo 'alias k=kubectl' >> ~/.zshrc
+                    echo 'complete -F __start_kubectl k' >> ~/.zshrc
+                fi
+            fi
+            ;;
+    esac
+    
+    log_info "kubectl 自动补全已配置，请重新加载终端或运行: source ~/.bashrc (Linux) 或 source ~/.zshrc (macOS)"
+}
+
 # 验证安装
 verify_installation() {
     log_info "验证安装结果..."
@@ -442,6 +607,13 @@ verify_installation() {
     else
         echo -e "${RED}✗${NC} Node.js: 未安装"
     fi
+    
+    # kubectl
+    if command -v kubectl &> /dev/null; then
+        echo -e "${GREEN}✓${NC} kubectl: $(kubectl version --client --short 2>/dev/null || echo '版本信息获取失败')"
+    else
+        echo -e "${RED}✗${NC} kubectl: 未安装"
+    fi
 }
 
 # 显示帮助信息
@@ -462,10 +634,13 @@ show_help() {
     go                  安装 Go 语言环境
     java                安装 Java 17
     nodejs              安装 Node.js LTS
+    kubectl [版本]      安装 kubectl (默认最新版本，可指定如 v1.28.4)
 
 示例:
     $0 docker           # 仅安装 Docker
     $0 docker go        # 安装 Docker 和 Go
+    $0 kubectl          # 安装最新版本的 kubectl
+    $0 kubectl v1.28.4  # 安装指定版本的 kubectl
     $0 -a               # 安装所有软件
     $0 --verify         # 验证安装
 
@@ -492,6 +667,7 @@ main() {
     update_only=false
     verify_only=false
     software_list=()
+    kubectl_version="latest"
     
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -514,6 +690,16 @@ main() {
             docker|go|java|nodejs)
                 software_list+=("$1")
                 shift
+                ;;
+            kubectl)
+                software_list+=("$1")
+                # 检查下一个参数是否为版本号
+                if [[ $# -gt 1 && "$2" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                    kubectl_version="$2"
+                    shift 2
+                else
+                    shift
+                fi
                 ;;
             *)
                 log_error "未知参数: $1"
@@ -544,7 +730,7 @@ main() {
     
     # 安装软件
     if [[ "$install_all" == true ]]; then
-        software_list=("docker" "go" "java" "nodejs")
+        software_list=("docker" "go" "java" "nodejs" "kubectl")
     fi
     
     for software in "${software_list[@]}"; do
@@ -562,6 +748,9 @@ main() {
                 ;;
             "nodejs")
                 install_nodejs
+                ;;
+            "kubectl")
+                install_kubectl "$kubectl_version"
                 ;;
         esac
     done
