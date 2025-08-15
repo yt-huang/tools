@@ -217,25 +217,91 @@ install_docker_compose() {
         return 0
     fi
     
-    # 安装独立版本的 docker-compose
-    local compose_version=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep -Po '"tag_name": "\K.*?(?=")')
+    # 检查是否已安装独立版本的 docker-compose
+    if command -v docker-compose >/dev/null 2>&1; then
+        log_success "Docker Compose (独立版本) 已安装: $(docker-compose --version)"
+        return 0
+    fi
     
-    if [[ -z "$compose_version" ]]; then
-        compose_version="v2.21.0"  # 备用版本
-        log_warning "无法获取最新版本，使用备用版本: $compose_version"
+    # 获取最新版本
+    local compose_version="v2.24.5"  # 默认使用稳定版本
+    
+    # 尝试从GitHub API获取最新版本
+    if curl -s --connect-timeout 5 https://api.github.com/repos/docker/compose/releases/latest >/dev/null 2>&1; then
+        local latest_version=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep -Po '"tag_name": "\K.*?(?=")' 2>/dev/null)
+        if [[ -n "$latest_version" ]]; then
+            compose_version="$latest_version"
+            log_info "获取到最新版本: $compose_version"
+        fi
+    else
+        log_warning "无法访问GitHub API，使用默认版本: $compose_version"
     fi
     
     case $OS in
         "ubuntu"|"debian"|"centos"|"rhel")
-            # 使用国内镜像下载
-            sudo curl -L "https://github.com/docker/compose/releases/download/${compose_version}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            log_info "下载 Docker Compose 二进制文件..."
+            
+            # 确定系统架构
+            local arch=$(uname -m)
+            case $arch in
+                "x86_64") arch="x86_64";;
+                "aarch64") arch="aarch64";;
+                "arm64") arch="aarch64";;
+                *) log_error "不支持的架构: $arch"; return 1;;
+            esac
+            
+            # 尝试多个下载源
+            local download_success=false
+            local download_urls=(
+                "https://github.com/docker/compose/releases/download/${compose_version}/docker-compose-linux-${arch}"
+                "https://ghproxy.com/https://github.com/docker/compose/releases/download/${compose_version}/docker-compose-linux-${arch}"
+                "https://hub.fastgit.xyz/docker/compose/releases/download/${compose_version}/docker-compose-linux-${arch}"
+            )
+            
+            for url in "${download_urls[@]}"; do
+                log_info "尝试从 $url 下载..."
+                if sudo curl -L "$url" -o /usr/local/bin/docker-compose --connect-timeout 10 --max-time 60; then
+                    download_success=true
+                    log_success "下载成功"
+                    break
+                else
+                    log_warning "从 $url 下载失败，尝试下一个源..."
+                fi
+            done
+            
+            if [[ "$download_success" == false ]]; then
+                log_error "所有下载源都失败，无法安装 Docker Compose"
+                return 1
+            fi
+            
+            # 设置执行权限
             sudo chmod +x /usr/local/bin/docker-compose
             
             # 创建软链接
             sudo ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+            
+            # 验证安装
+            if docker-compose --version >/dev/null 2>&1; then
+                log_success "Docker Compose 安装成功: $(docker-compose --version)"
+            else
+                log_error "Docker Compose 安装验证失败"
+                return 1
+            fi
             ;;
         "macos")
-            brew install docker-compose
+            log_info "使用 Homebrew 安装 Docker Compose..."
+            if command -v brew >/dev/null 2>&1; then
+                brew install docker-compose
+                if docker-compose --version >/dev/null 2>&1; then
+                    log_success "Docker Compose 安装成功: $(docker-compose --version)"
+                else
+                    log_error "Docker Compose 安装失败"
+                    return 1
+                fi
+            else
+                log_error "Homebrew 未安装，请先安装 Homebrew"
+                return 1
+            fi
             ;;
     esac
     
