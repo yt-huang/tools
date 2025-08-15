@@ -402,29 +402,75 @@ install_kubectl() {
     local version=${1:-"latest"}
     log_info "安装 kubectl (版本: $version)..."
     
-    # 获取 kubectl 版本
-    local kubectl_version=""
-    if [[ "$version" == "latest" ]]; then
-        # 尝试获取最新版本
-        kubectl_version=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt 2>/dev/null)
-        if [[ -z "$kubectl_version" ]]; then
-            # 备用方案：使用已知的稳定版本
-            kubectl_version="v1.28.4"
-            log_warning "无法获取最新版本，使用默认版本: $kubectl_version"
-        else
-            log_info "获取到最新版本: $kubectl_version"
-        fi
-    else
-        # 验证版本格式
-        if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            log_error "无效的版本格式: $version，请使用格式如 v1.28.4"
-            return 1
-        fi
-        kubectl_version="$version"
-    fi
-    
     case $OS in
         "ubuntu"|"debian"|"centos"|"rhel")
+            # 优先使用阿里云镜像源安装
+            log_info "使用阿里云镜像源安装 kubectl..."
+            
+            case $OS in
+                "ubuntu"|"debian")
+                    # 使用阿里云镜像源安装 kubectl
+                    sudo apt-get update
+                    if sudo apt-get install -y kubectl; then
+                        log_success "通过阿里云镜像源安装成功"
+                        # 配置自动补全
+                        install_kubectl_completion
+                        return 0
+                    else
+                        log_warning "阿里云镜像源安装失败，尝试二进制下载..."
+                    fi
+                    ;;
+                "centos"|"rhel")
+                    # 配置阿里云 Kubernetes 镜像源
+                    log_info "配置阿里云 Kubernetes 镜像源..."
+                    cat <<EOF | sudo tee /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=https://mirrors.aliyun.com/kubernetes/yum/repos/kubernetes-el7-x86_64/
+enabled=1
+gpgcheck=0
+repo_gpgcheck=0
+gpgkey=https://mirrors.aliyun.com/kubernetes/yum/doc/yum-key.gpg https://mirrors.aliyun.com/kubernetes/yum/doc/rpm-package-key.gpg
+EOF
+                    
+                    sudo yum clean all
+                    sudo yum makecache
+                    
+                    if sudo yum install -y kubectl; then
+                        log_success "通过阿里云镜像源安装成功"
+                        # 配置自动补全
+                        install_kubectl_completion
+                        return 0
+                    else
+                        log_warning "阿里云镜像源安装失败，尝试二进制下载..."
+                    fi
+                    ;;
+            esac
+            
+            # 如果包管理器安装失败，使用阿里云镜像下载二进制文件
+            log_info "使用阿里云镜像下载 kubectl 二进制文件..."
+            
+            # 获取 kubectl 版本
+            local kubectl_version=""
+            if [[ "$version" == "latest" ]]; then
+                # 使用阿里云镜像获取最新版本
+                kubectl_version=$(curl -s https://ghproxy.com/https://storage.googleapis.com/kubernetes-release/release/stable.txt 2>/dev/null)
+                if [[ -z "$kubectl_version" ]]; then
+                    # 备用方案：使用已知的稳定版本
+                    kubectl_version="v1.28.4"
+                    log_warning "无法获取最新版本，使用默认版本: $kubectl_version"
+                else
+                    log_info "获取到最新版本: $kubectl_version"
+                fi
+            else
+                # 验证版本格式
+                if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                    log_error "无效的版本格式: $version，请使用格式如 v1.28.4"
+                    return 1
+                fi
+                kubectl_version="$version"
+            fi
+            
             # 确定系统架构
             local arch=$(uname -m)
             case $arch in
@@ -434,14 +480,11 @@ install_kubectl() {
                 *) log_error "不支持的架构: $arch"; return 1;;
             esac
             
-            # 尝试多个下载源
+            # 使用阿里云镜像源下载
             local download_success=false
             local download_urls=(
-                "https://dl.k8s.io/release/${kubectl_version}/bin/linux/${arch}/kubectl"
                 "https://ghproxy.com/https://dl.k8s.io/release/${kubectl_version}/bin/linux/${arch}/kubectl"
-                "https://hub.fastgit.xyz/kubernetes/kubernetes/releases/download/${kubectl_version}/kubernetes-client-linux-${arch}.tar.gz"
                 "https://mirror.ghproxy.com/https://dl.k8s.io/release/${kubectl_version}/bin/linux/${arch}/kubectl"
-                "https://download.fastgit.org/kubernetes/kubernetes/releases/download/${kubectl_version}/kubernetes-client-linux-${arch}.tar.gz"
                 "https://github.91chi.fun/https://dl.k8s.io/release/${kubectl_version}/bin/linux/${arch}/kubectl"
             )
             
@@ -452,24 +495,11 @@ install_kubectl() {
             for url in "${download_urls[@]}"; do
                 log_info "尝试从 $url 下载..."
                 
-                if [[ "$url" == *".tar.gz" ]]; then
-                    # 处理压缩包下载
-                    if curl -L "$url" -o kubectl.tar.gz --connect-timeout 15 --max-time 300 --retry 3 --retry-delay 2; then
-                        tar -xzf kubectl.tar.gz
-                        if [[ -f "kubernetes/client/bin/kubectl" ]]; then
-                            sudo cp kubernetes/client/bin/kubectl /usr/local/bin/
-                            download_success=true
-                            log_success "下载并解压成功"
-                            break
-                        fi
-                    fi
-                else
-                    # 直接下载二进制文件
-                    if sudo curl -L "$url" -o /usr/local/bin/kubectl --connect-timeout 15 --max-time 300 --retry 3 --retry-delay 2; then
-                        download_success=true
-                        log_success "下载成功"
-                        break
-                    fi
+                # 直接下载二进制文件
+                if sudo curl -L "$url" -o /usr/local/bin/kubectl --connect-timeout 15 --max-time 180 --retry 3; then
+                    download_success=true
+                    log_success "下载成功"
+                    break
                 fi
                 
                 log_warning "从 $url 下载失败，尝试下一个源..."
@@ -480,47 +510,12 @@ install_kubectl() {
             rm -rf "$temp_dir"
             
             if [[ "$download_success" == false ]]; then
-                log_warning "所有下载源都失败，尝试使用包管理器安装..."
-                
-                # 尝试使用包管理器安装
-                case $OS in
-                    "ubuntu"|"debian")
-                        # 添加 Kubernetes 官方仓库
-                        sudo apt-get update && sudo apt-get install -y apt-transport-https ca-certificates curl
-                        sudo curl -fsSLo /etc/apt/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg
-                        echo "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
-                        sudo apt-get update
-                        if sudo apt-get install -y kubectl; then
-                            download_success=true
-                            log_success "通过包管理器安装成功"
-                        fi
-                        ;;
-                    "centos"|"rhel")
-                        cat <<EOF | sudo tee /etc/yum.repos.d/kubernetes.repo
-[kubernetes]
-name=Kubernetes
-baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
-enabled=1
-gpgcheck=1
-repo_gpgcheck=1
-gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
-EOF
-                        sudo yum install -y kubectl
-                        if command -v kubectl >/dev/null 2>&1; then
-                            download_success=true
-                            log_success "通过包管理器安装成功"
-                        fi
-                        ;;
-                esac
-                
-                if [[ "$download_success" == false ]]; then
-                    log_error "所有安装方式都失败，无法安装 kubectl"
-                    log_info "请手动下载 kubectl 并安装："
-                    log_info "1. 访问 https://kubernetes.io/docs/tasks/tools/install-kubectl/"
-                    log_info "2. 下载对应版本的 kubectl 二进制文件"
-                    log_info "3. 放置到 /usr/local/bin/ 并设置执行权限"
-                    return 1
-                fi
+                log_error "所有阿里云镜像源都失败，无法安装 kubectl"
+                log_info "请手动下载 kubectl 并安装："
+                log_info "1. 访问 https://kubernetes.io/docs/tasks/tools/install-kubectl/"
+                log_info "2. 下载对应版本的 kubectl 二进制文件"
+                log_info "3. 放置到 /usr/local/bin/ 并设置执行权限"
+                return 1
             fi
             
             # 设置执行权限
@@ -536,6 +531,9 @@ EOF
                 log_error "kubectl 安装验证失败"
                 return 1
             fi
+            
+            # 配置自动补全
+            install_kubectl_completion
             ;;
         "macos")
             if command -v brew >/dev/null 2>&1; then
