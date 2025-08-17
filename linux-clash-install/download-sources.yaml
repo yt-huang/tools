@@ -4,39 +4,72 @@ g# Clash 下载源配置文件
 # 主要下载源（按推荐优先级排序）
 # 注意: Dreamacro/clash 仓库已于2023年末被删除，建议使用 Clash Meta
 primary_sources:
-  - name: "Clash Meta (mihomo) - 推荐"
-    url_template: "https://github.com/MetaCubeX/mihomo/releases/download/v{version}/mihomo-linux-{arch}-v{version}.gz"
-    description: "Clash Meta 继任者，功能更强大"
+  - name: "Clash Meta (mihomo) JSDelivr CDN - 优先推荐"
+    url_template: "https://cdn.jsdelivr.net/gh/MetaCubeX/mihomo/releases/download/v{version}/mihomo-linux-{arch}-v{version}.gz"
+    description: "JSDelivr CDN加速，国内访问友好"
     reliability: "high"
     
-  - name: "Clash Meta (mihomo) JSDelivr CDN"
-    url_template: "https://cdn.jsdelivr.net/gh/MetaCubeX/mihomo@v{version}/mihomo-linux-{arch}-v{version}.gz"
-    description: "通过CDN加速下载"
+  - name: "Clash Meta (mihomo) - 官方源"
+    url_template: "https://github.com/MetaCubeX/mihomo/releases/download/v{version}/mihomo-linux-{arch}-v{version}.gz"
+    description: "Clash Meta 继任者，功能更强大"
     reliability: "high"
     
   - name: "Clash Meta GitHub Proxy"
     url_template: "https://ghproxy.com/https://github.com/MetaCubeX/mihomo/releases/download/v{version}/mihomo-linux-{arch}-v{version}.gz"
     description: "GitHub代理服务"
     reliability: "medium"
+    
+  - name: "Clash Meta 国内代理1 (mirror.ghproxy.com)"
+    url_template: "https://mirror.ghproxy.com/https://github.com/MetaCubeX/mihomo/releases/download/v{version}/mihomo-linux-{arch}-v{version}.gz"
+    description: "国内GitHub代理镜像"
+    reliability: "medium"
+    
+  - name: "Clash Meta 国内代理2 (gh.api.99988866.xyz)"
+    url_template: "https://gh.api.99988866.xyz/https://github.com/MetaCubeX/mihomo/releases/download/v{version}/mihomo-linux-{arch}-v{version}.gz"
+    description: "国内GitHub代理镜像"
+    reliability: "medium"
+    
+  - name: "Clash Meta 国内代理3 (ghps.cc)"
+    url_template: "https://ghps.cc/https://github.com/MetaCubeX/mihomo/releases/download/v{version}/mihomo-linux-{arch}-v{version}.gz"
+    description: "国内GitHub代理镜像"
+    reliability: "medium"
 
 # 备用下载源
 backup_sources:
+  - name: "sing-box JSDelivr CDN"
+    url_template: "https://cdn.jsdelivr.net/gh/SagerNet/sing-box/releases/download/v{version}/sing-box-{version}-linux-{arch}.tar.gz"
+    description: "sing-box JSDelivr CDN加速"
+    reliability: "high"
+    
   - name: "sing-box (替代方案)"
     url_template: "https://github.com/SagerNet/sing-box/releases/download/v{version}/sing-box-{version}-linux-{arch}.tar.gz"
     description: "现代化的通用代理平台"
     reliability: "high"
     
+  - name: "sing-box 国内代理"
+    url_template: "https://ghproxy.com/https://github.com/SagerNet/sing-box/releases/download/v{version}/sing-box-{version}-linux-{arch}.tar.gz"
+    description: "sing-box GitHub代理"
+    reliability: "medium"
+    
   - name: "v2ray-core"
     url_template: "https://github.com/v2fly/v2ray-core/releases/download/v{version}/v2ray-linux-{arch}.zip"
     description: "经典的代理核心"
+    reliability: "medium"
+    
+  - name: "v2ray-core 国内代理"
+    url_template: "https://ghproxy.com/https://github.com/v2fly/v2ray-core/releases/download/v{version}/v2ray-linux-{arch}.zip"
+    description: "v2ray GitHub代理"
     reliability: "medium"
 
 # 手动下载指引
 manual_download:
   mihomo_official: "https://github.com/MetaCubeX/mihomo/releases"
+  mihomo_proxy1: "https://ghproxy.com/https://github.com/MetaCubeX/mihomo/releases"
+  mihomo_proxy2: "https://mirror.ghproxy.com/https://github.com/MetaCubeX/mihomo/releases"
   clash_meta_legacy: "https://github.com/MetaCubeX/Clash.Meta/releases" 
   jsdelivr_mihomo: "https://cdn.jsdelivr.net/gh/MetaCubeX/mihomo/releases/"
   sing_box: "https://github.com/SagerNet/sing-box/releases"
+  sing_box_proxy: "https://ghproxy.com/https://github.com/SagerNet/sing-box/releases"
   
 # 网络检测节点
 connectivity_test:
@@ -56,6 +89,8 @@ troubleshooting:
     - "尝试使用公共DNS"
     - "检查系统时间是否正确"
     - "尝试使用代理重新运行脚本"
+    - "如果GitHub访问缓慢，优先使用国内代理源"
+    - "推荐代理源顺序: ghproxy.com > mirror.ghproxy.com > gh.api.99988866.xyz"
   
   alternative_methods:
     - "使用Docker镜像: docker pull metacubex/mihomo"
@@ -71,6 +106,10 @@ update_log:
       - "更新主要下载源为 MetaCubeX/mihomo (Clash Meta)"
       - "添加 sing-box 和 v2ray-core 作为备用方案"
       - "更新手动下载链接到新仓库"
+      - "新增多个国内GitHub代理源"
+      - "添加ghproxy.com, mirror.ghproxy.com, gh.api.99988866.xyz等代理"
+      - "为所有备用源添加国内代理版本"
+      - "更新故障排除指南，增加国内代理使用建议"
   - date: "2024-12-19"
     changes:
       - "移除失效的fastgit镜像"
