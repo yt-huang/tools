@@ -374,27 +374,489 @@ install_java() {
 
 # 安装 Node.js
 install_nodejs() {
-    log_info "安装 Node.js..."
+    local version=${1:-"lts"}
+    log_info "安装 Node.js (版本: $version)..."
+    
+    # 检查是否已安装指定版本
+    if command -v node >/dev/null 2>&1; then
+        local current_version=$(node --version 2>/dev/null | sed 's/v//')
+        log_info "检测到已安装 Node.js: v$current_version"
+        
+        if [[ "$version" == "lts" ]]; then
+            log_warning "Node.js 已安装，如需安装特定版本请使用: $0 nodejs v<版本号>"
+            configure_nodejs_environment
+            return 0
+        elif [[ "$version" == "v$current_version" || "$version" == "$current_version" ]]; then
+            log_success "Node.js $version 已安装"
+            configure_nodejs_environment
+            return 0
+        else
+            log_warning "当前版本 v$current_version 与目标版本 $version 不匹配"
+            read -p "是否要安装新版本? (y/N): " install_new
+            if [[ "$install_new" != "y" && "$install_new" != "Y" ]]; then
+                configure_nodejs_environment
+                return 0
+            fi
+        fi
+    fi
     
     case $OS in
         "ubuntu"|"debian")
-            # 使用 NodeSource 仓库
-            curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
-            sudo apt-get install -y nodejs
+            install_nodejs_debian "$version"
             ;;
         "centos"|"rhel")
-            curl -fsSL https://rpm.nodesource.com/setup_lts.x | sudo bash -
-            sudo yum install -y nodejs
+            install_nodejs_rhel "$version"
             ;;
         "macos")
-            brew install node
+            install_nodejs_macos "$version"
+            ;;
+        *)
+            log_error "不支持的操作系统: $OS"
+            return 1
             ;;
     esac
     
-    # 配置 npm 国内镜像
-    npm config set registry https://registry.npmmirror.com
+    # 配置 Node.js 环境
+    configure_nodejs_environment
+    
+    # 验证安装
+    verify_nodejs_installation
     
     log_success "Node.js 安装完成"
+}
+
+# Debian/Ubuntu 系统安装 Node.js
+install_nodejs_debian() {
+    local version="$1"
+    local install_success=false
+    
+    if [[ "$version" == "lts" ]]; then
+        # 方法1: 使用清华大学镜像源的 NodeSource 仓库
+        log_info "使用清华大学镜像源安装 Node.js LTS..."
+        
+        # 清理旧的 NodeSource 仓库
+        sudo rm -f /etc/apt/sources.list.d/nodesource.list
+        sudo rm -f /etc/apt/keyrings/nodesource.gpg
+        
+        # 使用清华镜像的 NodeSource 脚本
+        if curl -fsSL https://mirrors.tuna.tsinghua.edu.cn/nodesource/deb_setup_lts.x -o /tmp/nodesource_setup.sh; then
+            # 修改脚本中的源地址为清华镜像
+            sed -i 's|https://deb.nodesource.com|https://mirrors.tuna.tsinghua.edu.cn/nodesource|g' /tmp/nodesource_setup.sh
+            if sudo bash /tmp/nodesource_setup.sh && sudo apt-get install -y nodejs; then
+                install_success=true
+                log_success "通过清华镜像源安装成功"
+            fi
+            rm -f /tmp/nodesource_setup.sh
+        fi
+        
+        # 方法2: 使用阿里云镜像
+        if [[ "$install_success" == false ]]; then
+            log_warning "清华镜像安装失败，尝试阿里云镜像..."
+            
+            # 添加 NodeSource GPG 密钥
+            curl -fsSL https://deb.nodesource.com/gpgkey/nodesource.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+            
+            # 获取 Ubuntu 版本代号
+            local codename=$(lsb_release -cs)
+            
+            # 添加阿里云镜像的 NodeSource 仓库
+            echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://mirrors.aliyun.com/nodesource/deb_20.x $codename main" | sudo tee /etc/apt/sources.list.d/nodesource.list
+            
+            sudo apt-get update
+            if sudo apt-get install -y nodejs; then
+                install_success=true
+                log_success "通过阿里云镜像安装成功"
+            fi
+        fi
+        
+        # 方法3: 使用二进制安装
+        if [[ "$install_success" == false ]]; then
+            log_warning "包管理器安装失败，尝试二进制安装..."
+            install_nodejs_binary "lts"
+            if command -v node >/dev/null 2>&1; then
+                install_success=true
+            fi
+        fi
+    else
+        # 安装指定版本，直接使用二进制安装
+        log_info "安装指定版本 $version，使用二进制安装..."
+        install_nodejs_binary "$version"
+        if command -v node >/dev/null 2>&1; then
+            install_success=true
+        fi
+    fi
+    
+    if [[ "$install_success" == false ]]; then
+        log_error "Node.js 安装失败"
+        return 1
+    fi
+}
+
+# RHEL/CentOS 系统安装 Node.js
+install_nodejs_rhel() {
+    local version="$1"
+    local install_success=false
+    
+    if [[ "$version" == "lts" ]]; then
+        # 使用 EPEL 和 NodeSource
+        log_info "安装 EPEL 仓库..."
+        sudo yum install -y epel-release
+        
+        # 清理旧的 NodeSource 仓库
+        sudo rm -f /etc/yum.repos.d/nodesource-*.repo
+        
+        # 尝试使用清华镜像
+        log_info "使用清华镜像安装 Node.js LTS..."
+        if curl -fsSL https://mirrors.tuna.tsinghua.edu.cn/nodesource/rpm_setup_lts.x -o /tmp/nodesource_setup.sh; then
+            if sudo bash /tmp/nodesource_setup.sh && sudo yum install -y nodejs; then
+                install_success=true
+                log_success "通过清华镜像安装成功"
+            fi
+            rm -f /tmp/nodesource_setup.sh
+        fi
+        
+        # 备用方案：二进制安装
+        if [[ "$install_success" == false ]]; then
+            log_warning "包管理器安装失败，尝试二进制安装..."
+            install_nodejs_binary "lts"
+            if command -v node >/dev/null 2>&1; then
+                install_success=true
+            fi
+        fi
+    else
+        # 指定版本直接使用二进制安装
+        install_nodejs_binary "$version"
+        if command -v node >/dev/null 2>&1; then
+            install_success=true
+        fi
+    fi
+    
+    if [[ "$install_success" == false ]]; then
+        log_error "Node.js 安装失败"
+        return 1
+    fi
+}
+
+# macOS 安装 Node.js
+install_nodejs_macos() {
+    local version="$1"
+    
+    if ! command -v brew >/dev/null 2>&1; then
+        log_error "Homebrew 未安装，请先安装 Homebrew"
+        return 1
+    fi
+    
+    if [[ "$version" == "lts" ]]; then
+        # 安装 LTS 版本
+        log_info "使用 Homebrew 安装 Node.js LTS..."
+        brew install node
+    else
+        # 使用 n 或 nvm 管理多版本
+        log_info "安装 Node.js 版本管理工具 n..."
+        brew install n
+        
+        # 清理版本号格式
+        version=$(echo "$version" | sed 's/^v//')
+        
+        log_info "使用 n 安装 Node.js $version..."
+        sudo n "$version"
+    fi
+}
+
+# 二进制方式安装 Node.js
+install_nodejs_binary() {
+    local version="$1"
+    local node_version=""
+    
+    # 确定要安装的版本
+    if [[ "$version" == "lts" ]]; then
+        # 获取 LTS 版本号
+        log_info "获取 Node.js LTS 版本信息..."
+        
+        # 尝试多个 API 源获取版本信息
+        local api_urls=(
+            "https://nodejs.org/dist/index.json"
+            "https://mirrors.ustc.edu.cn/node/index.json"
+            "https://mirrors.tuna.tsinghua.edu.cn/nodejs-release/index.json"
+        )
+        
+        for api_url in "${api_urls[@]}"; do
+            if node_version=$(curl -s --connect-timeout 10 "$api_url" | grep -o '"version":"v[^"]*"' | grep 'lts' -A1 | head -1 | cut -d'"' -f4 2>/dev/null); then
+                log_info "获取到 LTS 版本: $node_version"
+                break
+            fi
+        done
+        
+        # 如果无法获取，使用默认版本
+        if [[ -z "$node_version" ]]; then
+            node_version="v20.10.0"  # 默认 LTS 版本
+            log_warning "无法获取最新 LTS 版本，使用默认版本: $node_version"
+        fi
+    else
+        # 标准化版本号格式
+        if [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            node_version="$version"
+        elif [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            node_version="v$version"
+        else
+            log_error "无效的版本格式: $version，请使用如 v20.10.0 或 20.10.0"
+            return 1
+        fi
+    fi
+    
+    # 确定系统架构
+    local arch=$(uname -m)
+    local node_arch=""
+    case $arch in
+        "x86_64") node_arch="x64";;
+        "aarch64"|"arm64") node_arch="arm64";;
+        "armv7l") node_arch="armv7l";;
+        *) log_error "不支持的架构: $arch"; return 1;;
+    esac
+    
+    # 确定系统平台
+    local platform=""
+    case $OS in
+        "ubuntu"|"debian"|"centos"|"rhel") platform="linux";;
+        "macos") platform="darwin";;
+        *) log_error "不支持的平台: $OS"; return 1;;
+    esac
+    
+    # 构建下载URL
+    local package_name="node-${node_version}-${platform}-${node_arch}"
+    local download_urls=(
+        "https://mirrors.ustc.edu.cn/node/${node_version}/${package_name}.tar.xz"
+        "https://mirrors.tuna.tsinghua.edu.cn/nodejs-release/${node_version}/${package_name}.tar.xz"
+        "https://npm.taobao.org/mirrors/node/${node_version}/${package_name}.tar.xz"
+        "https://nodejs.org/dist/${node_version}/${package_name}.tar.xz"
+    )
+    
+    # 创建临时目录
+    local temp_dir=$(mktemp -d)
+    cd "$temp_dir"
+    
+    local download_success=false
+    for url in "${download_urls[@]}"; do
+        log_info "尝试从 $url 下载..."
+        
+        if curl -L "$url" -o "${package_name}.tar.xz" --connect-timeout 15 --max-time 300 --retry 3; then
+            log_success "下载成功"
+            
+            # 解压
+            log_info "解压 Node.js..."
+            if tar -xf "${package_name}.tar.xz"; then
+                # 安装到系统目录
+                log_info "安装 Node.js 到 /usr/local..."
+                
+                sudo cp -rf "${package_name}"/* /usr/local/
+                
+                # 创建软链接
+                sudo ln -sf /usr/local/bin/node /usr/bin/node
+                sudo ln -sf /usr/local/bin/npm /usr/bin/npm
+                sudo ln -sf /usr/local/bin/npx /usr/bin/npx
+                
+                download_success=true
+                log_success "Node.js $node_version 安装成功"
+                break
+            else
+                log_warning "解压失败，尝试下一个源..."
+            fi
+        else
+            log_warning "下载失败，尝试下一个源..."
+        fi
+    done
+    
+    # 清理临时目录
+    cd - > /dev/null
+    rm -rf "$temp_dir"
+    
+    if [[ "$download_success" == false ]]; then
+        log_error "所有下载源都失败，无法安装 Node.js"
+        return 1
+    fi
+}
+
+# 配置 Node.js 环境
+configure_nodejs_environment() {
+    log_info "配置 Node.js 开发环境..."
+    
+    # 配置 npm 国内镜像源
+    log_info "配置 npm 镜像源..."
+    npm config set registry https://registry.npmmirror.com
+    npm config set disturl https://npmmirror.com/dist
+    npm config set electron_mirror https://npmmirror.com/mirrors/electron/
+    npm config set electron_builder_binaries_mirror https://npmmirror.com/mirrors/electron-builder-binaries/
+    npm config set phantomjs_cdnurl https://npmmirror.com/mirrors/phantomjs/
+    npm config set chromedriver_cdnurl https://npmmirror.com/mirrors/chromedriver/
+    npm config set sass_binary_site https://npmmirror.com/mirrors/node-sass/
+    
+    # 安装常用全局包管理器
+    install_package_managers
+    
+    # 配置开发环境
+    setup_nodejs_dev_environment
+}
+
+# 安装包管理器
+install_package_managers() {
+    log_info "安装包管理器..."
+    
+    # 安装 yarn
+    if ! command -v yarn >/dev/null 2>&1; then
+        log_info "安装 Yarn..."
+        if npm install -g yarn; then
+            log_success "Yarn 安装成功"
+            
+            # 配置 yarn 镜像源
+            yarn config set registry https://registry.npmmirror.com
+            yarn config set disturl https://npmmirror.com/dist
+            yarn config set electron_mirror https://npmmirror.com/mirrors/electron/
+            yarn config set sass_binary_site https://npmmirror.com/mirrors/node-sass/
+        else
+            log_warning "Yarn 安装失败"
+        fi
+    else
+        log_info "Yarn 已安装: $(yarn --version)"
+    fi
+    
+    # 安装 pnpm
+    if ! command -v pnpm >/dev/null 2>&1; then
+        log_info "安装 pnpm..."
+        if npm install -g pnpm; then
+            log_success "pnpm 安装成功"
+            
+            # 配置 pnpm 镜像源
+            pnpm config set registry https://registry.npmmirror.com
+            pnpm config set disturl https://npmmirror.com/dist
+            pnpm config set electron_mirror https://npmmirror.com/mirrors/electron/
+            pnpm config set sass_binary_site https://npmmirror.com/mirrors/node-sass/
+        else
+            log_warning "pnpm 安装失败"
+        fi
+    else
+        log_info "pnpm 已安装: $(pnpm --version)"
+    fi
+}
+
+# 设置 Node.js 开发环境
+setup_nodejs_dev_environment() {
+    log_info "设置 Node.js 开发环境..."
+    
+    # 安装常用的全局开发工具
+    local global_packages=(
+        "@vue/cli"          # Vue CLI
+        "create-react-app"  # React CLI
+        "typescript"        # TypeScript
+        "nodemon"          # 开发服务器
+        "pm2"              # 进程管理器
+        "http-server"      # 静态文件服务器
+        "live-server"      # 开发服务器
+    )
+    
+    log_info "安装全局开发工具..."
+    for package in "${global_packages[@]}"; do
+        if ! npm list -g "$package" >/dev/null 2>&1; then
+            log_info "安装 $package..."
+            npm install -g "$package" 2>/dev/null || log_warning "$package 安装失败"
+        fi
+    done
+    
+    # 创建常用的开发目录结构
+    local dev_dirs=(
+        "$HOME/workspace"
+        "$HOME/workspace/nodejs"
+        "$HOME/workspace/vue"
+        "$HOME/workspace/react"
+    )
+    
+    for dir in "${dev_dirs[@]}"; do
+        if [[ ! -d "$dir" ]]; then
+            mkdir -p "$dir"
+            log_info "创建开发目录: $dir"
+        fi
+    done
+    
+    # 配置环境变量（如果需要）
+    local shell_config=""
+    case $OS in
+        "ubuntu"|"debian"|"centos"|"rhel")
+            shell_config="$HOME/.bashrc"
+            ;;
+        "macos")
+            shell_config="$HOME/.zshrc"
+            ;;
+    esac
+    
+    if [[ -n "$shell_config" && -f "$shell_config" ]]; then
+        # 添加 Node.js 开发环境变量
+        if ! grep -q "# Node.js development environment" "$shell_config"; then
+            cat >> "$shell_config" << 'EOF'
+
+# Node.js development environment
+export NODE_ENV=development
+export NPM_CONFIG_PREFIX="$HOME/.npm-global"
+export PATH="$NPM_CONFIG_PREFIX/bin:$PATH"
+
+# Node.js aliases
+alias npmls='npm list -g --depth=0'
+alias npmclean='npm cache clean --force'
+alias yarnls='yarn global list'
+alias pnpmls='pnpm list -g'
+
+EOF
+            log_info "已添加 Node.js 开发环境配置到 $shell_config"
+        fi
+    fi
+}
+
+# 验证 Node.js 安装
+verify_nodejs_installation() {
+    log_info "验证 Node.js 安装..."
+    
+    # 验证 Node.js
+    if command -v node >/dev/null 2>&1; then
+        local node_version=$(node --version)
+        log_success "Node.js: $node_version"
+        
+        # 验证 npm
+        if command -v npm >/dev/null 2>&1; then
+            local npm_version=$(npm --version)
+            log_success "npm: v$npm_version"
+        else
+            log_warning "npm 未找到"
+        fi
+        
+        # 验证 npx
+        if command -v npx >/dev/null 2>&1; then
+            log_success "npx: 可用"
+        else
+            log_warning "npx 未找到"
+        fi
+        
+        # 验证包管理器
+        if command -v yarn >/dev/null 2>&1; then
+            local yarn_version=$(yarn --version)
+            log_success "Yarn: v$yarn_version"
+        fi
+        
+        if command -v pnpm >/dev/null 2>&1; then
+            local pnpm_version=$(pnpm --version)
+            log_success "pnpm: v$pnpm_version"
+        fi
+        
+        # 测试简单的 Node.js 脚本
+        local test_script='console.log("Node.js 运行正常! 版本:", process.version)'
+        if echo "$test_script" | node; then
+            log_success "Node.js 运行测试通过"
+        else
+            log_warning "Node.js 运行测试失败"
+        fi
+        
+        return 0
+    else
+        log_error "Node.js 安装验证失败"
+        return 1
+    fi
 }
 
 # 安装 Clash
@@ -766,13 +1228,16 @@ show_help() {
     docker              安装 Docker 和 Docker Compose
     go                  安装 Go 语言环境
     java                安装 Java 17
-    nodejs              安装 Node.js LTS
+    nodejs [版本]       安装 Node.js (默认LTS版本，可指定如 v20.10.0 或 18.19.0)
     kubectl [版本]      安装 kubectl (默认最新版本，可指定如 v1.28.4)
     clash               安装 Clash 代理工具 (Ubuntu无GUI环境)
 
 示例:
     $0 docker           # 仅安装 Docker
     $0 docker go        # 安装 Docker 和 Go
+    $0 nodejs           # 安装 Node.js LTS 版本
+    $0 nodejs v20.10.0  # 安装指定版本的 Node.js
+    $0 nodejs lts       # 明确安装 LTS 版本
     $0 kubectl          # 安装最新版本的 kubectl
     $0 kubectl v1.28.4  # 安装指定版本的 kubectl
     $0 clash            # 安装 Clash 代理工具
@@ -803,6 +1268,7 @@ main() {
     verify_only=false
     software_list=()
     kubectl_version="latest"
+    nodejs_version="lts"
     
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -822,9 +1288,19 @@ main() {
                 verify_only=true
                 shift
                 ;;
-            docker|go|java|nodejs|clash)
+            docker|go|java|clash)
                 software_list+=("$1")
                 shift
+                ;;
+            nodejs)
+                software_list+=("$1")
+                # 检查下一个参数是否为版本号
+                if [[ $# -gt 1 && ("$2" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ || "$2" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ || "$2" == "lts") ]]; then
+                    nodejs_version="$2"
+                    shift 2
+                else
+                    shift
+                fi
                 ;;
             kubectl)
                 software_list+=("$1")
@@ -882,7 +1358,7 @@ main() {
                 install_java
                 ;;
             "nodejs")
-                install_nodejs
+                install_nodejs "$nodejs_version"
                 ;;
             "kubectl")
                 install_kubectl "$kubectl_version"
@@ -902,3 +1378,4 @@ main() {
 
 # 脚本入口
 main "$@"
+

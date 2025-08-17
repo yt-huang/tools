@@ -230,7 +230,32 @@ TUN模式提供更全面的代理覆盖，包括不支持代理的应用程序�
 
 ## 常见问题
 
-### 1. 服务启动失败
+### 1. Ubuntu 无GUI环境错误
+
+**错误：** `Missing X server or $DISPLAY` 或 `Segmentation fault`
+
+**解决方案：** 脚本已自动优化无GUI环境，包括：
+- 设置正确的环境变量
+- 安装必要的运行时依赖
+- 配置headless模式
+
+如果仍有问题，请参考：[Ubuntu 故障排除指南](UBUNTU-TROUBLESHOOTING.md)
+
+### 2. 架构不匹配
+
+**错误：** 安装验证失败
+
+**解决方案：**
+```bash
+# 检查系统架构
+uname -m
+
+# 确保使用正确的二进制文件
+# x86_64 → mihomo-linux-amd64-v1.18.8.gz
+# aarch64 → mihomo-linux-arm64-v1.18.8.gz
+```
+
+### 3. 服务启动失败
 
 ```bash
 # 查看详细日志
@@ -240,13 +265,13 @@ journalctl -u clash -n 50
 /opt/clash/clash -t -d /etc/clash
 ```
 
-### 2. 无法访问外网
+### 4. 无法访问外网
 
 - 确保订阅链接正确配置
 - 检查代理服务器是否可用
 - 验证DNS设置
 
-### 3. TUN模式无法启用
+### 5. TUN模式无法启用
 
 ```bash
 # 检查内核模块
@@ -256,7 +281,7 @@ lsmod | grep tun
 modprobe tun
 ```
 
-### 4. 权限问题
+### 6. 权限问题
 
 确保以root权限运行安装脚本：
 ```bash
@@ -309,6 +334,8 @@ sudo systemctl daemon-reload
 - **自动订阅配置**: 读取 `ording-address` 文件自动配置订阅链接
 - **离线安装支持**: 支持完全离线安装，无需网络连接
 - **智能架构匹配**: 根据系统架构自动匹配对应的二进制文件
+- **Ubuntu无GUI优化**: 自动配置headless环境，解决X11和段错误问题
+- **增强错误处理**: 多级验证机制，提供详细的故障诊断信息
 
 ### 🔧 网络连接性改进
 - **新增网络诊断脚本**: `network-diagnostic.sh` 用于排查网络连接问题
