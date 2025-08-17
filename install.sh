@@ -397,6 +397,66 @@ install_nodejs() {
     log_success "Node.js 安装完成"
 }
 
+# 安装 Clash
+install_clash() {
+    log_info "安装 Clash 代理工具..."
+    
+    # 检查是否为Linux系统
+    if [[ "$OS" == "macos" ]]; then
+        log_error "Clash 安装脚本目前仅支持 Linux 系统 (Ubuntu/Debian)"
+        log_info "macOS 用户请手动安装 ClashX 或 ClashX Pro"
+        return 1
+    fi
+    
+    # 检查是否有 linux-clash-install 目录
+    local script_dir="$(dirname "$(realpath "$0")")"
+    local clash_script="$script_dir/linux-clash-install/clash-install.sh"
+    
+    if [[ ! -f "$clash_script" ]]; then
+        log_error "未找到 Clash 安装脚本: $clash_script"
+        log_info "请确保 linux-clash-install/clash-install.sh 文件存在"
+        return 1
+    fi
+    
+    # 检查脚本权限
+    if [[ ! -x "$clash_script" ]]; then
+        log_info "为 Clash 安装脚本添加执行权限..."
+        chmod +x "$clash_script"
+    fi
+    
+    # 检查是否为root权限
+    if [[ $EUID -ne 0 ]]; then
+        log_warning "Clash 安装需要 root 权限"
+        log_info "正在使用 sudo 运行 Clash 安装脚本..."
+        
+        if sudo "$clash_script"; then
+            log_success "Clash 安装完成"
+        else
+            log_error "Clash 安装失败"
+            return 1
+        fi
+    else
+        # 已经是root权限，直接运行
+        if "$clash_script"; then
+            log_success "Clash 安装完成"
+        else
+            log_error "Clash 安装失败"
+            return 1
+        fi
+    fi
+    
+    # 显示安装后提示
+    echo -e "\n${BLUE}=== Clash 安装完成 ===${NC}"
+    echo -e "${GREEN}管理命令:${NC}"
+    echo "  clash-ctl start      # 启动服务"
+    echo "  clash-ctl stop       # 停止服务"
+    echo "  clash-ctl status     # 查看状态"
+    echo "  clash-ctl proxy-enable   # 启用系统代理"
+    echo "  clash-ctl tun-enable     # 启用TUN模式"
+    echo ""
+    echo -e "${YELLOW}注意: 请编辑 /etc/clash/config.yaml 添加您的代理订阅链接${NC}"
+}
+
 # 安装 kubectl
 install_kubectl() {
     local version=${1:-"latest"}
@@ -676,6 +736,17 @@ verify_installation() {
     else
         echo -e "${RED}✗${NC} kubectl: 未安装"
     fi
+    
+    # Clash
+    if command -v clash-ctl &> /dev/null; then
+        if systemctl is-active --quiet clash 2>/dev/null; then
+            echo -e "${GREEN}✓${NC} Clash: 已安装并运行中"
+        else
+            echo -e "${YELLOW}!${NC} Clash: 已安装但未运行"
+        fi
+    else
+        echo -e "${RED}✗${NC} Clash: 未安装"
+    fi
 }
 
 # 显示帮助信息
@@ -697,12 +768,14 @@ show_help() {
     java                安装 Java 17
     nodejs              安装 Node.js LTS
     kubectl [版本]      安装 kubectl (默认最新版本，可指定如 v1.28.4)
+    clash               安装 Clash 代理工具 (Ubuntu无GUI环境)
 
 示例:
     $0 docker           # 仅安装 Docker
     $0 docker go        # 安装 Docker 和 Go
     $0 kubectl          # 安装最新版本的 kubectl
     $0 kubectl v1.28.4  # 安装指定版本的 kubectl
+    $0 clash            # 安装 Clash 代理工具
     $0 -a               # 安装所有软件
     $0 --verify         # 验证安装
 
@@ -749,7 +822,7 @@ main() {
                 verify_only=true
                 shift
                 ;;
-            docker|go|java|nodejs)
+            docker|go|java|nodejs|clash)
                 software_list+=("$1")
                 shift
                 ;;
@@ -813,6 +886,9 @@ main() {
                 ;;
             "kubectl")
                 install_kubectl "$kubectl_version"
+                ;;
+            "clash")
+                install_clash
                 ;;
         esac
     done

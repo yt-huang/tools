@@ -19,6 +19,8 @@
 | **Go** | Go 语言环境 | ✅ goproxy.cn 代理 |
 | **Java** | Java 17 开发环境 | ✅ OpenJDK |
 | **Node.js** | JavaScript 运行环境 | ✅ 淘宝 NPM 镜像 |
+| **kubectl** | Kubernetes 命令行工具 | ✅ 阿里云镜像源 |
+| **Clash** | 代理工具 (Ubuntu无GUI) | ✅ 支持系统代理和TUN模式 |
 
 ## 🚀 快速开始
 
@@ -77,6 +79,8 @@ chmod +x install.sh
     go                  安装 Go 语言环境
     java                安装 Java 17
     nodejs              安装 Node.js LTS
+    kubectl [版本]      安装 kubectl (默认最新版本)
+    clash               安装 Clash 代理工具 (Ubuntu无GUI)
 ```
 
 ### 安装示例
@@ -91,7 +95,13 @@ chmod +x install.sh
 # 示例 3: 安装所有支持的软件
 ./install.sh --all
 
-# 示例 4: 验证安装状态
+# 示例 4: 安装 Clash 代理工具 (Ubuntu无GUI)
+./install.sh clash
+
+# 示例 5: 安装 kubectl
+./install.sh kubectl
+
+# 示例 6: 验证安装状态
 ./install.sh --verify
 ```
 
@@ -205,9 +215,81 @@ sudo rm -rf /var/lib/docker
 sudo rm -rf /etc/docker
 ```
 
+## 🔧 Clash 代理工具安装详情
+
+### 功能特性
+
+1. **自动安装**: 无人值守安装Clash核心和依赖
+2. **系统代理**: 支持HTTP/HTTPS代理模式
+3. **TUN模式**: 支持透明代理，无需应用程序支持代理
+4. **systemd服务**: 自动配置系统服务，开机自启
+5. **Web管理**: 内置API接口，支持Web面板管理
+6. **多架构支持**: 自动检测并安装对应架构版本
+
+### 快速开始
+
+```bash
+# 1. 安装Clash
+./install.sh clash
+
+# 2. 配置订阅链接
+sudo nano /etc/clash/config.yaml
+
+# 3. 启动服务
+clash-ctl start
+
+# 4. 启用系统代理
+clash-ctl proxy-enable
+
+# 5. 或启用TUN模式（推荐）
+clash-ctl tun-enable
+```
+
+### 管理命令
+
+```bash
+# 服务管理
+clash-ctl start          # 启动服务
+clash-ctl stop           # 停止服务
+clash-ctl restart        # 重启服务
+clash-ctl status         # 查看状态
+clash-ctl logs           # 查看日志
+
+# 代理控制
+clash-ctl proxy-enable   # 启用系统代理
+clash-ctl proxy-disable  # 禁用系统代理
+clash-ctl tun-enable     # 启用TUN模式
+clash-ctl tun-disable    # 禁用TUN模式
+
+# 配置管理
+clash-ctl config         # 编辑配置文件
+clash-ctl reload         # 重载配置
+clash-ctl web            # 显示Web面板地址
+```
+
+### 代理端口说明
+
+- **HTTP代理**: 127.0.0.1:7890
+- **SOCKS5代理**: 127.0.0.1:7891
+- **Web管理API**: 127.0.0.1:9090
+
+### 配置文件
+
+- **主配置**: `/etc/clash/config.yaml`
+- **示例配置**: `linux-clash-install/example-config.yaml`
+- **快速指南**: `linux-clash-install/QUICKSTART.md`
+
+**注意**: Clash安装脚本目前仅支持Ubuntu无GUI环境，需要root权限。
+
 ## 📝 更新日志
 
-### v1.0 (当前版本)
+### v1.1 (当前版本)
+- ✅ 新增 Clash 代理工具安装支持
+- ✅ 支持系统代理和TUN透明代理模式
+- ✅ 完整的管理脚本和配置文件
+- ✅ 支持 kubectl 安装
+
+### v1.0
 - ✅ 支持 Docker 和 Docker Compose 安装
 - ✅ 支持 Go、Java、Node.js 安装
 - ✅ 国内镜像源优化

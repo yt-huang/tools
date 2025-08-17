@@ -1,0 +1,244 @@
+# Clash 配置文件示例
+# 此文件展示了如何配置订阅和常用代理规则
+
+port: 7890
+socks-port: 7891
+redir-port: 7892
+tproxy-port: 7893
+mixed-port: 7890
+
+# HTTP(S) and SOCKS5 server on the same port
+allow-lan: true
+bind-address: "*"
+mode: rule
+log-level: info
+ipv6: false
+
+# RESTful web API listening address
+external-controller: 127.0.0.1:9090
+secret: ""
+
+# TUN配置
+tun:
+  enable: true
+  stack: system
+  device: clash-tun
+  auto-route: true
+  auto-detect-interface: true
+  dns-hijack:
+    - 8.8.8.8:53
+    - 8.8.4.4:53
+
+# DNS配置（针对国内网络环境优化）
+dns:
+  enable: true
+  listen: 0.0.0.0:1053
+  ipv6: false
+  default-nameserver:
+    - 223.5.5.5        # 阿里DNS
+    - 223.6.6.6        # 阿里DNS备用
+    - 114.114.114.114  # 114DNS
+    - 119.29.29.29     # 腾讯DNS
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter:
+    - "*.lan"
+    - "*.local"
+    - localhost.ptlogin2.qq.com
+    - "+.srv.nintendo.net"
+    - "+.stun.playstation.net"
+    - "+.msftconnecttest.com"
+    - "+.msftncsi.com"
+    - "+.apple.com"
+    - "+.icloud.com"
+  nameserver:
+    - https://dns.alidns.com/dns-query    # 阿里DoH
+    - https://doh.pub/dns-query           # 腾讯DoH
+    - https://doh.360.cn/dns-query        # 360DoH
+    - tls://dns.rubyfish.cn:853           # 红鱼DoT
+  fallback:
+    - https://1.1.1.1/dns-query          # CloudFlare
+    - https://8.8.8.8/dns-query          # Google DNS
+    - tls://8.8.4.4:853                  # Google DoT
+  fallback-filter:
+    geoip: true
+    geoip-code: CN
+    ipcidr:
+      - 240.0.0.0/4
+
+# 代理提供者配置示例
+proxy-providers:
+  # 主要订阅源
+  main-subscription:
+    type: http
+    url: "https://example.com/your-subscription-link"  # 替换为您的订阅链接
+    interval: 86400
+    path: ./proxies/main.yaml
+    health-check:
+      enable: true
+      interval: 600
+      url: http://www.gstatic.com/generate_204
+
+  # 备用订阅源
+  backup-subscription:
+    type: http
+    url: "https://backup.example.com/your-backup-subscription"  # 可选的备用订阅
+    interval: 86400
+    path: ./proxies/backup.yaml
+    health-check:
+      enable: true
+      interval: 600
+      url: http://www.gstatic.com/generate_204
+
+# 代理组配置
+proxy-groups:
+  # 主要代理选择组
+  - name: "🚀 代理选择"
+    type: select
+    use:
+      - main-subscription
+      - backup-subscription
+    proxies:
+      - "♻️ 自动选择"
+      - "🎯 全球直连"
+
+  # 自动选择最快节点
+  - name: "♻️ 自动选择"
+    type: url-test
+    use:
+      - main-subscription
+      - backup-subscription
+    url: 'http://www.gstatic.com/generate_204'
+    interval: 300
+    tolerance: 50
+
+  # 手动选择节点
+  - name: "🔰 节点选择"
+    type: select
+    use:
+      - main-subscription
+      - backup-subscription
+
+  # 国外媒体
+  - name: "🌍 国外媒体"
+    type: select
+    proxies:
+      - "🚀 代理选择"
+      - "♻️ 自动选择"
+      - "🔰 节点选择"
+      - "🎯 全球直连"
+
+  # 国内直连
+  - name: "🎯 全球直连"
+    type: select
+    proxies:
+      - DIRECT
+
+  # 广告拦截
+  - name: "🛡️ 广告拦截"
+    type: select
+    proxies:
+      - REJECT
+      - DIRECT
+
+# 规则配置
+rules:
+  # 局域网直连
+  - DOMAIN-SUFFIX,local,🎯 全球直连
+  - IP-CIDR,127.0.0.0/8,🎯 全球直连
+  - IP-CIDR,172.16.0.0/12,🎯 全球直连
+  - IP-CIDR,192.168.0.0/16,🎯 全球直连
+  - IP-CIDR,10.0.0.0/8,🎯 全球直连
+  - IP-CIDR,17.0.0.0/8,🎯 全球直连
+  - IP-CIDR,100.64.0.0/10,🎯 全球直连
+
+  # 常见广告域名拦截
+  - DOMAIN-SUFFIX,doubleclick.net,🛡️ 广告拦截
+  - DOMAIN-SUFFIX,googleadservices.com,🛡️ 广告拦截
+  - DOMAIN-SUFFIX,googlesyndication.com,🛡️ 广告拦截
+  - DOMAIN-SUFFIX,googletagmanager.com,🛡️ 广告拦截
+
+  # 国外常见服务
+  - DOMAIN-SUFFIX,google.com,🚀 代理选择
+  - DOMAIN-SUFFIX,googleapis.com,🚀 代理选择
+  - DOMAIN-SUFFIX,github.com,🚀 代理选择
+  - DOMAIN-SUFFIX,githubusercontent.com,🚀 代理选择
+  - DOMAIN-SUFFIX,youtube.com,🌍 国外媒体
+  - DOMAIN-SUFFIX,youtu.be,🌍 国外媒体
+  - DOMAIN-SUFFIX,netflix.com,🌍 国外媒体
+  - DOMAIN-SUFFIX,twitter.com,🚀 代理选择
+  - DOMAIN-SUFFIX,facebook.com,🚀 代理选择
+  - DOMAIN-SUFFIX,instagram.com,🚀 代理选择
+  - DOMAIN-SUFFIX,telegram.org,🚀 代理选择
+
+  # 国内服务直连
+  - DOMAIN-SUFFIX,cn,🎯 全球直连
+  - DOMAIN-SUFFIX,com.cn,🎯 全球直连
+  - DOMAIN-SUFFIX,net.cn,🎯 全球直连
+  
+  # 主要国内网站
+  - DOMAIN-SUFFIX,qq.com,🎯 全球直连
+  - DOMAIN-SUFFIX,tencent.com,🎯 全球直连
+  - DOMAIN-SUFFIX,taobao.com,🎯 全球直连
+  - DOMAIN-SUFFIX,tmall.com,🎯 全球直连
+  - DOMAIN-SUFFIX,jd.com,🎯 全球直连
+  - DOMAIN-SUFFIX,360buy.com,🎯 全球直连
+  - DOMAIN-SUFFIX,weibo.com,🎯 全球直连
+  - DOMAIN-SUFFIX,sina.com.cn,🎯 全球直连
+  - DOMAIN-SUFFIX,sina.cn,🎯 全球直连
+  - DOMAIN-SUFFIX,bilibili.com,🎯 全球直连
+  - DOMAIN-SUFFIX,zhihu.com,🎯 全球直连
+  - DOMAIN-SUFFIX,baidu.com,🎯 全球直连
+  - DOMAIN-SUFFIX,163.com,🎯 全球直连
+  - DOMAIN-SUFFIX,126.com,🎯 全球直连
+  - DOMAIN-SUFFIX,netease.com,🎯 全球直连
+  
+  # 阿里系
+  - DOMAIN-SUFFIX,alipay.com,🎯 全球直连
+  - DOMAIN-SUFFIX,aliyun.com,🎯 全球直连
+  - DOMAIN-SUFFIX,alibaba.com,🎯 全球直连
+  - DOMAIN-SUFFIX,alicdn.com,🎯 全球直连
+  - DOMAIN-SUFFIX,alimama.com,🎯 全球直连
+  
+  # 其他常用国内服务
+  - DOMAIN-SUFFIX,douyin.com,🎯 全球直连
+  - DOMAIN-SUFFIX,toutiao.com,🎯 全球直连
+  - DOMAIN-SUFFIX,xiaomi.com,🎯 全球直连
+  - DOMAIN-SUFFIX,huawei.com,🎯 全球直连
+  - DOMAIN-SUFFIX,oppo.com,🎯 全球直连
+  - DOMAIN-SUFFIX,vivo.com,🎯 全球直连
+  - DOMAIN-SUFFIX,meizu.com,🎯 全球直连
+  - DOMAIN-SUFFIX,lenovo.com.cn,🎯 全球直连
+  - DOMAIN-SUFFIX,iqiyi.com,🎯 全球直连
+  - DOMAIN-SUFFIX,youku.com,🎯 全球直连
+  - DOMAIN-SUFFIX,tudou.com,🎯 全球直连
+  - DOMAIN-SUFFIX,mgtv.com,🎯 全球直连
+  - DOMAIN-SUFFIX,sohu.com,🎯 全球直连
+  - DOMAIN-SUFFIX,ifeng.com,🎯 全球直连
+  - DOMAIN-SUFFIX,autohome.com.cn,🎯 全球直连
+  - DOMAIN-SUFFIX,58.com,🎯 全球直连
+  - DOMAIN-SUFFIX,anjuke.com,🎯 全球直连
+  - DOMAIN-SUFFIX,lianjia.com,🎯 全球直连
+  - DOMAIN-SUFFIX,dianping.com,🎯 全球直连
+  - DOMAIN-SUFFIX,meituan.com,🎯 全球直连
+  - DOMAIN-SUFFIX,ele.me,🎯 全球直连
+  
+  # 银行和金融
+  - DOMAIN-SUFFIX,icbc.com.cn,🎯 全球直连
+  - DOMAIN-SUFFIX,ccb.com,🎯 全球直连
+  - DOMAIN-SUFFIX,boc.cn,🎯 全球直连
+  - DOMAIN-SUFFIX,abchina.com,🎯 全球直连
+  - DOMAIN-SUFFIX,95599.cn,🎯 全球直连
+  - DOMAIN-SUFFIX,cmbchina.com,🎯 全球直连
+  
+  # 政府和官方网站
+  - DOMAIN-SUFFIX,gov.cn,🎯 全球直连
+  - DOMAIN-SUFFIX,edu.cn,🎯 全球直连
+  - DOMAIN-SUFFIX,mil.cn,🎯 全球直连
+  - DOMAIN-SUFFIX,ac.cn,🎯 全球直连
+
+  # 中国IP直连
+  - GEOIP,CN,🎯 全球直连
+
+  # 最终规则
+  - MATCH,🚀 代理选择
