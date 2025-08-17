@@ -1,0 +1,70 @@
+# Clash 下载源配置文件
+# 2024年12月更新 - 可用的下载源列表
+
+# 主要下载源（按推荐优先级排序）
+primary_sources:
+  - name: "JSDelivr CDN"
+    url_template: "https://cdn.jsdelivr.net/gh/Dreamacro/clash@v{version}/clash-linux-{arch}-v{version}.gz"
+    description: "全球CDN，相对稳定"
+    reliability: "high"
+    
+  - name: "GitHub Releases Official"
+    url_template: "https://github.com/Dreamacro/clash/releases/download/v{version}/clash-linux-{arch}-v{version}.gz"
+    description: "官方发布页面，可能需要代理"
+    reliability: "high"
+    
+  - name: "GitHub Proxy (ghproxy.com)"
+    url_template: "https://ghproxy.com/https://github.com/Dreamacro/clash/releases/download/v{version}/clash-linux-{arch}-v{version}.gz"
+    description: "GitHub代理服务"
+    reliability: "medium"
+
+# 备用下载源
+backup_sources:
+  - name: "Clash Meta"
+    url_template: "https://github.com/MetaCubeX/Clash.Meta/releases/download/v1.15.1/clash.meta-linux-{arch}-v1.15.1.gz"
+    description: "Clash Meta 兼容版本"
+    reliability: "medium"
+    
+  - name: "Mirror GitHub Proxy"
+    url_template: "https://mirror.ghproxy.com/https://github.com/Dreamacro/clash/releases/download/v{version}/clash-linux-{arch}-v{version}.gz"
+    description: "备用GitHub代理"
+    reliability: "low"
+
+# 手动下载指引
+manual_download:
+  official_page: "https://github.com/Dreamacro/clash/releases"
+  gitee_mirror: "https://gitee.com/Dreamacro/clash/releases"
+  jsdelivr_browser: "https://cdn.jsdelivr.net/gh/Dreamacro/clash/releases/"
+  
+# 网络检测节点
+connectivity_test:
+  dns_servers:
+    - "8.8.8.8"
+    - "1.1.1.1"
+    - "223.5.5.5"
+  test_urls:
+    - "https://github.com"
+    - "https://cdn.jsdelivr.net"
+    - "https://www.google.com"
+
+# 故障排除建议
+troubleshooting:
+  network_issues:
+    - "检查防火墙设置"
+    - "尝试使用公共DNS"
+    - "检查系统时间是否正确"
+    - "尝试使用代理重新运行脚本"
+  
+  alternative_methods:
+    - "使用Docker镜像: docker pull dreamacro/clash"
+    - "编译源码安装"
+    - "使用包管理器安装（如果可用）"
+
+# 更新日志
+update_log:
+  - date: "2024-12-19"
+    changes:
+      - "移除失效的fastgit镜像"
+      - "添加JSDelivr CDN作为主要源"
+      - "增加Clash Meta作为备用"
+      - "添加网络连接性检测"

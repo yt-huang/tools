@@ -3,6 +3,10 @@
 # Linux Clash 安装脚本 - 无GUI Ubuntu系统
 # 支持系统代理和TUN代理模式
 # Author: Auto-generated script
+# 更新日期: 2024-12-19
+# 
+# 如果遇到下载问题，请先运行网络诊断脚本:
+#   bash network-diagnostic.sh
 
 set -e
 
@@ -101,20 +105,50 @@ create_user_and_dirs() {
     echo -e "${GREEN}目录创建完成${NC}"
 }
 
+# 检查网络连接性
+check_network_connectivity() {
+    echo -e "${BLUE}检查网络连接性...${NC}"
+    
+    # 测试基本网络连接
+    if ! ping -c 1 -W 5 8.8.8.8 >/dev/null 2>&1; then
+        echo -e "${YELLOW}警告: 无法连接到互联网，可能会影响下载${NC}"
+        return 1
+    fi
+    
+    # 测试 DNS 解析
+    if ! nslookup github.com >/dev/null 2>&1; then
+        echo -e "${YELLOW}警告: DNS 解析存在问题，建议设置公共 DNS${NC}"
+        echo -e "${BLUE}设置公共 DNS: echo 'nameserver 8.8.8.8' >> /etc/resolv.conf${NC}"
+        return 1
+    fi
+    
+    # 测试 GitHub 连接性
+    if curl -s --connect-timeout 10 --max-time 30 https://github.com >/dev/null 2>&1; then
+        echo -e "${GREEN}网络连接正常，可以访问 GitHub${NC}"
+        return 0
+    else
+        echo -e "${YELLOW}警告: 无法直接访问 GitHub，将优先使用镜像源${NC}"
+        return 1
+    fi
+}
+
 # 下载Clash
 download_clash() {
     echo -e "${BLUE}下载Clash核心...${NC}"
     
     TEMP_FILE="/tmp/clash-linux-${CLASH_ARCH}.gz"
     
-    # 国内镜像源列表（按优先级排序）
+    # 国内镜像源列表（按优先级排序，2024年更新）
     local download_urls=(
+        # JSDelivr CDN - 相对稳定
+        "https://cdn.jsdelivr.net/gh/Dreamacro/clash@v${CLASH_VERSION}/clash-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
+        # 官方GitHub Releases（可能需要代理）
+        "https://github.com/Dreamacro/clash/releases/download/v${CLASH_VERSION}/clash-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
+        # 备用镜像源
         "https://ghproxy.com/https://github.com/Dreamacro/clash/releases/download/v${CLASH_VERSION}/clash-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
         "https://mirror.ghproxy.com/https://github.com/Dreamacro/clash/releases/download/v${CLASH_VERSION}/clash-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
-        "https://github.91chi.fun/https://github.com/Dreamacro/clash/releases/download/v${CLASH_VERSION}/clash-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
-        "https://hub.fastgit.xyz/Dreamacro/clash/releases/download/v${CLASH_VERSION}/clash-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
-        "https://download.fastgit.org/Dreamacro/clash/releases/download/v${CLASH_VERSION}/clash-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
-        "https://github.com/Dreamacro/clash/releases/download/v${CLASH_VERSION}/clash-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
+        # 如果上述都失败，提供Clash Premium的下载地址作为备用
+        "https://release.dreamacro.workers.dev/v${CLASH_VERSION}/clash-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
     )
     
     local download_success=false
@@ -152,14 +186,58 @@ download_clash() {
     fi
     
     if [[ "$download_success" == false ]]; then
-        echo -e "${RED}所有下载源都失败，无法下载Clash核心${NC}"
-        echo -e "${YELLOW}建议检查网络连接，或手动下载后放置到指定位置${NC}"
-        echo -e "${BLUE}手动安装步骤：${NC}"
-        echo "1. 访问 https://github.com/Dreamacro/clash/releases"
-        echo "2. 下载 clash-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
-        echo "3. 解压后重命名为 clash 并放置到 $CLASH_HOME/"
-        echo "4. 设置执行权限: chmod +x $CLASH_HOME/clash"
-        exit 1
+        echo -e "${RED}所有下载源都失败，尝试备用下载方案...${NC}"
+        
+        # 备用方案：尝试下载Clash Meta（兼容版本）
+        echo -e "${YELLOW}尝试下载 Clash Meta 作为替代方案...${NC}"
+        local meta_urls=(
+            "https://github.com/MetaCubeX/Clash.Meta/releases/download/v1.15.1/clash.meta-linux-${CLASH_ARCH}-v1.15.1.gz"
+            "https://cdn.jsdelivr.net/gh/MetaCubeX/Clash.Meta@v1.15.1/clash.meta-linux-${CLASH_ARCH}-v1.15.1.gz"
+        )
+        
+        for meta_url in "${meta_urls[@]}"; do
+            echo -e "${BLUE}尝试下载 Clash Meta: ${meta_url}${NC}"
+            if wget --timeout=30 --tries=3 -O "$TEMP_FILE" "$meta_url" 2>/dev/null; then
+                download_success=true
+                echo -e "${GREEN}Clash Meta 下载成功！${NC}"
+                break
+            fi
+        done
+        
+        if [[ "$download_success" == false ]]; then
+            echo -e "${RED}所有下载源都失败，无法下载Clash核心${NC}"
+            echo -e "${YELLOW}请尝试以下解决方案：${NC}"
+            echo ""
+            echo -e "${BLUE}方案1 - 手动下载安装：${NC}"
+            echo "1. 访问 https://github.com/Dreamacro/clash/releases"
+            echo "2. 下载 clash-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
+            echo "3. 解压: gunzip clash-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
+            echo "4. 重命名: mv clash-linux-${CLASH_ARCH}-v${CLASH_VERSION} clash"
+            echo "5. 移动到目标位置: sudo mv clash $CLASH_HOME/"
+            echo "6. 设置执行权限: sudo chmod +x $CLASH_HOME/clash"
+            echo "7. 设置所有者: sudo chown $CLASH_USER:$CLASH_USER $CLASH_HOME/clash"
+            echo ""
+            echo -e "${BLUE}方案2 - 使用代理重新运行脚本：${NC}"
+            echo "export http_proxy=http://your-proxy:port"
+            echo "export https_proxy=http://your-proxy:port"
+            echo "sudo -E bash $0"
+            echo ""
+            echo -e "${BLUE}方案3 - 使用国内源安装：${NC}"
+            echo "curl -fsSL https://get.docker.com | bash"
+            echo "docker pull dreamacro/clash"
+            echo ""
+            echo -e "${BLUE}备用下载地址：${NC}"
+            echo "- https://gitee.com/Dreamacro/clash/releases"
+            echo "- https://cdn.jsdelivr.net/gh/Dreamacro/clash/releases/"
+            
+            read -p "是否要继续脚本剩余部分的安装？(y/N): " continue_install
+            if [[ "$continue_install" != "y" && "$continue_install" != "Y" ]]; then
+                exit 1
+            else
+                echo -e "${YELLOW}跳过 Clash 核心下载，继续配置其他组件...${NC}"
+                return 0
+            fi
+        fi
     fi
     
     # 验证下载的文件
@@ -587,6 +665,7 @@ main() {
     check_system
     install_dependencies
     create_user_and_dirs
+    check_network_connectivity
     download_clash
     create_config
     create_systemd_service
