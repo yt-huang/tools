@@ -1,40 +1,42 @@
-# Clash 下载源配置文件
+g# Clash 下载源配置文件
 # 2024年12月更新 - 可用的下载源列表
 
 # 主要下载源（按推荐优先级排序）
+# 注意: Dreamacro/clash 仓库已于2023年末被删除，建议使用 Clash Meta
 primary_sources:
-  - name: "JSDelivr CDN"
-    url_template: "https://cdn.jsdelivr.net/gh/Dreamacro/clash@v{version}/clash-linux-{arch}-v{version}.gz"
-    description: "全球CDN，相对稳定"
+  - name: "Clash Meta (mihomo) - 推荐"
+    url_template: "https://github.com/MetaCubeX/mihomo/releases/download/v{version}/mihomo-linux-{arch}-v{version}.gz"
+    description: "Clash Meta 继任者，功能更强大"
     reliability: "high"
     
-  - name: "GitHub Releases Official"
-    url_template: "https://github.com/Dreamacro/clash/releases/download/v{version}/clash-linux-{arch}-v{version}.gz"
-    description: "官方发布页面，可能需要代理"
+  - name: "Clash Meta (mihomo) JSDelivr CDN"
+    url_template: "https://cdn.jsdelivr.net/gh/MetaCubeX/mihomo@v{version}/mihomo-linux-{arch}-v{version}.gz"
+    description: "通过CDN加速下载"
     reliability: "high"
     
-  - name: "GitHub Proxy (ghproxy.com)"
-    url_template: "https://ghproxy.com/https://github.com/Dreamacro/clash/releases/download/v{version}/clash-linux-{arch}-v{version}.gz"
+  - name: "Clash Meta GitHub Proxy"
+    url_template: "https://ghproxy.com/https://github.com/MetaCubeX/mihomo/releases/download/v{version}/mihomo-linux-{arch}-v{version}.gz"
     description: "GitHub代理服务"
     reliability: "medium"
 
 # 备用下载源
 backup_sources:
-  - name: "Clash Meta"
-    url_template: "https://github.com/MetaCubeX/Clash.Meta/releases/download/v1.15.1/clash.meta-linux-{arch}-v1.15.1.gz"
-    description: "Clash Meta 兼容版本"
-    reliability: "medium"
+  - name: "sing-box (替代方案)"
+    url_template: "https://github.com/SagerNet/sing-box/releases/download/v{version}/sing-box-{version}-linux-{arch}.tar.gz"
+    description: "现代化的通用代理平台"
+    reliability: "high"
     
-  - name: "Mirror GitHub Proxy"
-    url_template: "https://mirror.ghproxy.com/https://github.com/Dreamacro/clash/releases/download/v{version}/clash-linux-{arch}-v{version}.gz"
-    description: "备用GitHub代理"
-    reliability: "low"
+  - name: "v2ray-core"
+    url_template: "https://github.com/v2fly/v2ray-core/releases/download/v{version}/v2ray-linux-{arch}.zip"
+    description: "经典的代理核心"
+    reliability: "medium"
 
 # 手动下载指引
 manual_download:
-  official_page: "https://github.com/Dreamacro/clash/releases"
-  gitee_mirror: "https://gitee.com/Dreamacro/clash/releases"
-  jsdelivr_browser: "https://cdn.jsdelivr.net/gh/Dreamacro/clash/releases/"
+  mihomo_official: "https://github.com/MetaCubeX/mihomo/releases"
+  clash_meta_legacy: "https://github.com/MetaCubeX/Clash.Meta/releases" 
+  jsdelivr_mihomo: "https://cdn.jsdelivr.net/gh/MetaCubeX/mihomo/releases/"
+  sing_box: "https://github.com/SagerNet/sing-box/releases"
   
 # 网络检测节点
 connectivity_test:
@@ -56,12 +58,19 @@ troubleshooting:
     - "尝试使用代理重新运行脚本"
   
   alternative_methods:
-    - "使用Docker镜像: docker pull dreamacro/clash"
+    - "使用Docker镜像: docker pull metacubex/mihomo"
+    - "使用sing-box: docker pull sagernet/sing-box"
     - "编译源码安装"
     - "使用包管理器安装（如果可用）"
 
 # 更新日志
 update_log:
+  - date: "2024-12-20"
+    changes:
+      - "重要更新: Dreamacro/clash 仓库已被删除"
+      - "更新主要下载源为 MetaCubeX/mihomo (Clash Meta)"
+      - "添加 sing-box 和 v2ray-core 作为备用方案"
+      - "更新手动下载链接到新仓库"
   - date: "2024-12-19"
     changes:
       - "移除失效的fastgit镜像"

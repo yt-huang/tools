@@ -18,7 +18,8 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # 配置变量
-CLASH_VERSION="1.18.0"
+# 注意: 原 Dreamacro/clash 仓库已删除，现使用 mihomo (Clash Meta)
+CLASH_VERSION="1.18.8"  # 使用最新的 mihomo 版本
 CLASH_USER="clash"
 CLASH_HOME="/opt/clash"
 CLASH_CONFIG_DIR="/etc/clash"
@@ -138,17 +139,15 @@ download_clash() {
     
     TEMP_FILE="/tmp/clash-linux-${CLASH_ARCH}.gz"
     
-    # 国内镜像源列表（按优先级排序，2024年更新）
+    # 下载源列表（2024年12月更新 - 使用 mihomo/Clash Meta）
     local download_urls=(
+        # mihomo (Clash Meta) 官方 - 推荐
+        "https://github.com/MetaCubeX/mihomo/releases/download/v${CLASH_VERSION}/mihomo-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
         # JSDelivr CDN - 相对稳定
-        "https://cdn.jsdelivr.net/gh/Dreamacro/clash@v${CLASH_VERSION}/clash-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
-        # 官方GitHub Releases（可能需要代理）
-        "https://github.com/Dreamacro/clash/releases/download/v${CLASH_VERSION}/clash-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
-        # 备用镜像源
-        "https://ghproxy.com/https://github.com/Dreamacro/clash/releases/download/v${CLASH_VERSION}/clash-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
-        "https://mirror.ghproxy.com/https://github.com/Dreamacro/clash/releases/download/v${CLASH_VERSION}/clash-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
-        # 如果上述都失败，提供Clash Premium的下载地址作为备用
-        "https://release.dreamacro.workers.dev/v${CLASH_VERSION}/clash-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
+        "https://cdn.jsdelivr.net/gh/MetaCubeX/mihomo@v${CLASH_VERSION}/mihomo-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
+        # GitHub代理源
+        "https://ghproxy.com/https://github.com/MetaCubeX/mihomo/releases/download/v${CLASH_VERSION}/mihomo-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
+        "https://mirror.ghproxy.com/https://github.com/MetaCubeX/mihomo/releases/download/v${CLASH_VERSION}/mihomo-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
     )
     
     local download_success=false
@@ -188,11 +187,11 @@ download_clash() {
     if [[ "$download_success" == false ]]; then
         echo -e "${RED}所有下载源都失败，尝试备用下载方案...${NC}"
         
-        # 备用方案：尝试下载Clash Meta（兼容版本）
-        echo -e "${YELLOW}尝试下载 Clash Meta 作为替代方案...${NC}"
+        # 备用方案：尝试下载旧版 Clash Meta
+        echo -e "${YELLOW}尝试下载旧版 Clash Meta 作为替代方案...${NC}"
         local meta_urls=(
-            "https://github.com/MetaCubeX/Clash.Meta/releases/download/v1.15.1/clash.meta-linux-${CLASH_ARCH}-v1.15.1.gz"
-            "https://cdn.jsdelivr.net/gh/MetaCubeX/Clash.Meta@v1.15.1/clash.meta-linux-${CLASH_ARCH}-v1.15.1.gz"
+            "https://github.com/MetaCubeX/Clash.Meta/releases/download/v1.18.0/clash.meta-linux-${CLASH_ARCH}-v1.18.0.gz"
+            "https://cdn.jsdelivr.net/gh/MetaCubeX/Clash.Meta@v1.18.0/clash.meta-linux-${CLASH_ARCH}-v1.18.0.gz"
         )
         
         for meta_url in "${meta_urls[@]}"; do
@@ -208,11 +207,11 @@ download_clash() {
             echo -e "${RED}所有下载源都失败，无法下载Clash核心${NC}"
             echo -e "${YELLOW}请尝试以下解决方案：${NC}"
             echo ""
-            echo -e "${BLUE}方案1 - 手动下载安装：${NC}"
-            echo "1. 访问 https://github.com/Dreamacro/clash/releases"
-            echo "2. 下载 clash-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
-            echo "3. 解压: gunzip clash-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
-            echo "4. 重命名: mv clash-linux-${CLASH_ARCH}-v${CLASH_VERSION} clash"
+            echo -e "${BLUE}方案1 - 手动下载安装 mihomo (推荐)：${NC}"
+            echo "1. 访问 https://github.com/MetaCubeX/mihomo/releases"
+            echo "2. 下载 mihomo-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
+            echo "3. 解压: gunzip mihomo-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
+            echo "4. 重命名: mv mihomo-linux-${CLASH_ARCH}-v${CLASH_VERSION} clash"
             echo "5. 移动到目标位置: sudo mv clash $CLASH_HOME/"
             echo "6. 设置执行权限: sudo chmod +x $CLASH_HOME/clash"
             echo "7. 设置所有者: sudo chown $CLASH_USER:$CLASH_USER $CLASH_HOME/clash"
@@ -222,13 +221,13 @@ download_clash() {
             echo "export https_proxy=http://your-proxy:port"
             echo "sudo -E bash $0"
             echo ""
-            echo -e "${BLUE}方案3 - 使用国内源安装：${NC}"
+            echo -e "${BLUE}方案3 - 使用Docker镜像：${NC}"
             echo "curl -fsSL https://get.docker.com | bash"
-            echo "docker pull dreamacro/clash"
+            echo "docker pull metacubex/mihomo"
             echo ""
             echo -e "${BLUE}备用下载地址：${NC}"
-            echo "- https://gitee.com/Dreamacro/clash/releases"
-            echo "- https://cdn.jsdelivr.net/gh/Dreamacro/clash/releases/"
+            echo "- https://github.com/MetaCubeX/mihomo/releases"
+            echo "- https://cdn.jsdelivr.net/gh/MetaCubeX/mihomo/releases/"
             
             read -p "是否要继续脚本剩余部分的安装？(y/N): " continue_install
             if [[ "$continue_install" != "y" && "$continue_install" != "Y" ]]; then
@@ -254,8 +253,15 @@ download_clash() {
         exit 1
     fi
     
-    # 移动到目标位置
-    mv "/tmp/clash-linux-${CLASH_ARCH}" "$CLASH_HOME/clash"
+    # 移动到目标位置（处理不同的文件名）
+    EXTRACTED_FILE="/tmp/clash-linux-${CLASH_ARCH}"
+    if [[ -f "/tmp/mihomo-linux-${CLASH_ARCH}" ]]; then
+        EXTRACTED_FILE="/tmp/mihomo-linux-${CLASH_ARCH}"
+    elif [[ -f "/tmp/clash.meta-linux-${CLASH_ARCH}" ]]; then
+        EXTRACTED_FILE="/tmp/clash.meta-linux-${CLASH_ARCH}"
+    fi
+    
+    mv "$EXTRACTED_FILE" "$CLASH_HOME/clash"
     chmod +x "$CLASH_HOME/clash"
     chown "$CLASH_USER:$CLASH_USER" "$CLASH_HOME/clash"
     
