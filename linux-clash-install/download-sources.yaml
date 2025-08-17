@@ -4,15 +4,30 @@ g# Clash 下载源配置文件
 # 主要下载源（按推荐优先级排序）
 # 注意: Dreamacro/clash 仓库已于2023年末被删除，建议使用 Clash Meta
 primary_sources:
-  - name: "Clash Meta (mihomo) JSDelivr CDN - 优先推荐"
-    url_template: "https://cdn.jsdelivr.net/gh/MetaCubeX/mihomo/releases/download/v{version}/mihomo-linux-{arch}-v{version}.gz"
-    description: "JSDelivr CDN加速，国内访问友好"
+  - name: "Clash Meta GitHub 官方源 - 推荐"
+    url_template: "https://github.com/MetaCubeX/mihomo/releases/download/v{version}/mihomo-linux-{arch}-v{version}.gz"
+    description: "GitHub 官方发布，速度稳定，已测试可用"
     reliability: "high"
     
-  - name: "Clash Meta (mihomo) - 官方源"
-    url_template: "https://github.com/MetaCubeX/mihomo/releases/download/v{version}/mihomo-linux-{arch}-v{version}.gz"
-    description: "Clash Meta 继任者，功能更强大"
-    reliability: "high"
+  - name: "Clash Meta GitHub Proxy (ghproxy.com)"
+    url_template: "https://ghproxy.com/https://github.com/MetaCubeX/mihomo/releases/download/v{version}/mihomo-linux-{arch}-v{version}.gz"
+    description: "国内访问GitHub代理，备用选择"
+    reliability: "medium"
+    
+  - name: "Clash Meta mirror.ghproxy.com 代理"
+    url_template: "https://mirror.ghproxy.com/https://github.com/MetaCubeX/mihomo/releases/download/v{version}/mihomo-linux-{arch}-v{version}.gz"
+    description: "ghproxy镜像站，国内访问优化"
+    reliability: "medium"
+    
+  - name: "Clash Meta 国内镜像1"
+    url_template: "https://hub.fgit.ml/MetaCubeX/mihomo/releases/download/v{version}/mihomo-linux-{arch}-v{version}.gz"
+    description: "fgit.ml 国内镜像"
+    reliability: "medium"
+    
+  - name: "Clash Meta 国内镜像2"
+    url_template: "https://download.fastgit.org/MetaCubeX/mihomo/releases/download/v{version}/mihomo-linux-{arch}-v{version}.gz"
+    description: "fastgit.org 国内镜像"
+    reliability: "medium"
     
   - name: "Clash Meta GitHub Proxy"
     url_template: "https://ghproxy.com/https://github.com/MetaCubeX/mihomo/releases/download/v{version}/mihomo-linux-{arch}-v{version}.gz"
@@ -110,6 +125,10 @@ update_log:
       - "添加ghproxy.com, mirror.ghproxy.com, gh.api.99988866.xyz等代理"
       - "为所有备用源添加国内代理版本"
       - "更新故障排除指南，增加国内代理使用建议"
+      - "⭐ 完成下载源性能测试，确认GitHub官方源速度最佳"
+      - "🚀 创建快速下载测试脚本 (quick-download-test.sh)"
+      - "📊 创建详细速度测试脚本 (download-speed-test.sh)"
+      - "✅ 验证 mihomo v1.18.8 可正常下载，文件大小约10MB"
   - date: "2024-12-19"
     changes:
       - "移除失效的fastgit镜像"
