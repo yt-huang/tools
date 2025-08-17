@@ -137,6 +137,29 @@ check_network_connectivity() {
 download_clash() {
     echo -e "${BLUE}下载Clash核心...${NC}"
     
+    # 获取脚本所在目录
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    LOCAL_BINARY="${SCRIPT_DIR}/mihomo-linux-${CLASH_ARCH}-v${CLASH_VERSION}.gz"
+    
+    # 检查本地是否存在二进制文件
+    if [[ -f "$LOCAL_BINARY" ]]; then
+        echo -e "${GREEN}发现本地二进制文件: $LOCAL_BINARY${NC}"
+        echo -e "${BLUE}使用本地文件，跳过下载...${NC}"
+        
+        # 验证文件是否有效
+        if [[ -s "$LOCAL_BINARY" ]]; then
+            TEMP_FILE="$LOCAL_BINARY"
+            echo -e "${GREEN}本地文件验证通过，继续安装...${NC}"
+            # 跳转到安装部分
+            install_local_binary
+            return 0
+        else
+            echo -e "${YELLOW}本地文件无效或为空，继续在线下载...${NC}"
+        fi
+    else
+        echo -e "${YELLOW}未发现本地二进制文件，开始在线下载...${NC}"
+    fi
+    
     TEMP_FILE="/tmp/clash-linux-${CLASH_ARCH}.gz"
     
     # 下载源列表（2024年12月更新 - 使用 mihomo/Clash Meta）
@@ -274,11 +297,184 @@ download_clash() {
     fi
 }
 
+# 安装本地二进制文件
+install_local_binary() {
+    echo -e "${BLUE}安装本地二进制文件...${NC}"
+    
+    # 验证下载的文件
+    if [[ ! -f "$TEMP_FILE" ]] || [[ ! -s "$TEMP_FILE" ]]; then
+        echo -e "${RED}本地文件无效或为空${NC}"
+        exit 1
+    fi
+    
+    echo -e "${BLUE}解压Clash核心...${NC}"
+    
+    # 创建临时解压目录
+    TEMP_DIR="/tmp/clash-extract-$$"
+    mkdir -p "$TEMP_DIR"
+    
+    # 复制文件到临时目录进行解压
+    cp "$TEMP_FILE" "$TEMP_DIR/clash.gz"
+    
+    # 解压并安装
+    if ! gunzip -f "$TEMP_DIR/clash.gz"; then
+        echo -e "${RED}解压失败，文件可能损坏${NC}"
+        rm -rf "$TEMP_DIR"
+        exit 1
+    fi
+    
+    # 移动到目标位置（处理不同的文件名）
+    EXTRACTED_FILE="$TEMP_DIR/clash"
+    if [[ -f "$TEMP_DIR/mihomo-linux-${CLASH_ARCH}" ]]; then
+        EXTRACTED_FILE="$TEMP_DIR/mihomo-linux-${CLASH_ARCH}"
+    elif [[ -f "$TEMP_DIR/mihomo-linux-${CLASH_ARCH}-v${CLASH_VERSION}" ]]; then
+        EXTRACTED_FILE="$TEMP_DIR/mihomo-linux-${CLASH_ARCH}-v${CLASH_VERSION}"
+    fi
+    
+    mv "$EXTRACTED_FILE" "$CLASH_HOME/clash"
+    chmod +x "$CLASH_HOME/clash"
+    chown "$CLASH_USER:$CLASH_USER" "$CLASH_HOME/clash"
+    
+    # 清理临时目录
+    rm -rf "$TEMP_DIR"
+    
+    # 验证可执行文件
+    if "$CLASH_HOME/clash" -v >/dev/null 2>&1; then
+        echo -e "${GREEN}本地Clash核心安装成功: $("$CLASH_HOME/clash" -v)${NC}"
+    else
+        echo -e "${RED}本地Clash核心安装验证失败${NC}"
+        exit 1
+    fi
+}
+
 # 创建配置文件
 create_config() {
     echo -e "${BLUE}创建Clash配置文件...${NC}"
     
-    cat > "$CLASH_CONFIG_DIR/config.yaml" << 'EOF'
+    # 获取脚本所在目录
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    SUBSCRIPTION_FILE="${SCRIPT_DIR}/ording-address"
+    
+    # 读取订阅地址
+    SUBSCRIPTION_URL=""
+    if [[ -f "$SUBSCRIPTION_FILE" ]]; then
+        SUBSCRIPTION_URL=$(cat "$SUBSCRIPTION_FILE" | head -n 1 | tr -d '\r\n')
+        echo -e "${GREEN}发现订阅地址文件，自动配置订阅链接${NC}"
+        echo -e "${BLUE}订阅地址: ${SUBSCRIPTION_URL}${NC}"
+    else
+        echo -e "${YELLOW}未发现订阅地址文件，使用默认配置${NC}"
+    fi
+    
+    # 根据是否有订阅地址生成不同的配置
+    if [[ -n "$SUBSCRIPTION_URL" ]]; then
+        cat > "$CLASH_CONFIG_DIR/config.yaml" << EOF
+# Clash配置文件
+port: 7890
+socks-port: 7891
+redir-port: 7892
+tproxy-port: 7893
+mixed-port: 7890
+
+# HTTP(S) and SOCKS5 server on the same port
+allow-lan: true
+bind-address: "*"
+mode: rule
+log-level: info
+ipv6: false
+
+# RESTful web API listening address
+external-controller: 127.0.0.1:9090
+secret: ""
+
+# TUN配置
+tun:
+  enable: true
+  stack: system
+  device: clash-tun
+  auto-route: true
+  auto-detect-interface: true
+  dns-hijack:
+    - 8.8.8.8:53
+    - 8.8.4.4:53
+
+# DNS配置（针对国内网络环境优化）
+dns:
+  enable: true
+  listen: 0.0.0.0:1053
+  ipv6: false
+  default-nameserver:
+    - 223.5.5.5        # 阿里DNS
+    - 223.6.6.6        # 阿里DNS备用
+    - 114.114.114.114  # 114DNS
+    - 119.29.29.29     # 腾讯DNS
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter:
+    - "*.lan"
+    - "*.local"
+    - localhost.ptlogin2.qq.com
+    - "+.srv.nintendo.net"
+    - "+.stun.playstation.net"
+    - "+.msftconnecttest.com"
+    - "+.msftncsi.com"
+  nameserver:
+    - https://dns.alidns.com/dns-query    # 阿里DoH
+    - https://doh.pub/dns-query           # 腾讯DoH
+    - https://doh.360.cn/dns-query        # 360DoH
+    - tls://dns.rubyfish.cn:853           # 红鱼DoT
+  fallback:
+    - https://1.1.1.1/dns-query          # CloudFlare
+    - https://8.8.8.8/dns-query          # Google DNS
+    - tls://8.8.4.4:853                  # Google DoT
+  fallback-filter:
+    geoip: true
+    geoip-code: CN
+    ipcidr:
+      - 240.0.0.0/4
+
+# 代理提供者（自动配置订阅）
+proxy-providers:
+  default:
+    type: http
+    url: "${SUBSCRIPTION_URL}"
+    interval: 86400
+    path: ./proxies/default.yaml
+    health-check:
+      enable: true
+      interval: 600
+      url: http://www.gstatic.com/generate_204
+
+# 代理组
+proxy-groups:
+  - name: "PROXY"
+    type: select
+    use:
+      - default
+    proxies:
+      - DIRECT
+
+  - name: "AUTO"
+    type: url-test
+    use:
+      - default
+    url: 'http://www.gstatic.com/generate_204'
+    interval: 300
+
+# 规则
+rules:
+  - DOMAIN-SUFFIX,local,DIRECT
+  - IP-CIDR,127.0.0.0/8,DIRECT
+  - IP-CIDR,172.16.0.0/12,DIRECT
+  - IP-CIDR,192.168.0.0/16,DIRECT
+  - IP-CIDR,10.0.0.0/8,DIRECT
+  - IP-CIDR,17.0.0.0/8,DIRECT
+  - IP-CIDR,100.64.0.0/10,DIRECT
+  - DOMAIN-SUFFIX,cn,DIRECT
+  - GEOIP,CN,DIRECT
+  - MATCH,PROXY
+EOF
+    else
+        cat > "$CLASH_CONFIG_DIR/config.yaml" << 'EOF'
 # Clash配置文件
 port: 7890
 socks-port: 7891
@@ -384,6 +580,7 @@ rules:
   - GEOIP,CN,DIRECT
   - MATCH,PROXY
 EOF
+    fi
 
     chown "$CLASH_USER:$CLASH_USER" "$CLASH_CONFIG_DIR/config.yaml"
     chmod 644 "$CLASH_CONFIG_DIR/config.yaml"
@@ -634,6 +831,17 @@ start_service() {
 # 显示安装完成信息
 show_completion_info() {
     echo -e "\n${GREEN}=== Clash安装完成 ===${NC}"
+    
+    # 检查是否已配置订阅
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    SUBSCRIPTION_FILE="${SCRIPT_DIR}/ording-address"
+    
+    if [[ -f "$SUBSCRIPTION_FILE" ]]; then
+        SUBSCRIPTION_URL=$(cat "$SUBSCRIPTION_FILE" | head -n 1 | tr -d '\r\n')
+        echo -e "${GREEN}✅ 订阅地址已自动配置: ${SUBSCRIPTION_URL}${NC}"
+        echo ""
+    fi
+    
     echo -e "${BLUE}服务管理:${NC}"
     echo "  启动: clash-ctl start"
     echo "  停止: clash-ctl stop"
@@ -658,7 +866,16 @@ show_completion_info() {
     echo "  配置路径: $CLASH_CONFIG_DIR/config.yaml"
     echo "  编辑配置: clash-ctl config"
     echo ""
-    echo -e "${YELLOW}注意: 请编辑 $CLASH_CONFIG_DIR/config.yaml 添加您的代理订阅链接${NC}"
+    
+    if [[ -f "$SUBSCRIPTION_FILE" ]]; then
+        echo -e "${GREEN}✅ 订阅配置已自动完成，可以直接开始使用！${NC}"
+        echo -e "${BLUE}快速启动代理:${NC}"
+        echo "  1. 启用系统代理: clash-ctl proxy-enable"
+        echo "  2. 或启用TUN模式: clash-ctl tun-enable"
+    else
+        echo -e "${YELLOW}注意: 请编辑 $CLASH_CONFIG_DIR/config.yaml 添加您的代理订阅链接${NC}"
+        echo -e "${YELLOW}或者在脚本目录创建 ording-address 文件，将订阅链接放入其中${NC}"
+    fi
 }
 
 # 主函数

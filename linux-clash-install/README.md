@@ -6,6 +6,8 @@
 
 - ✅ 自动检测系统架构 (amd64, arm64, armv7)
 - ✅ 无人值守安装Clash核心
+- ✅ **智能本地文件检测** - 自动使用本地二进制文件，跳过下载
+- ✅ **自动订阅配置** - 读取 `ording-address` 文件自动配置订阅
 - ✅ 配置systemd系统服务
 - ✅ 支持系统代理模式 (HTTP/HTTPS)
 - ✅ 支持TUN透明代理模式
@@ -22,7 +24,27 @@
 
 ## 快速安装
 
-### 1. 下载并运行安装脚本
+### 1. 智能本地安装 (推荐)
+
+如果您已经有本地二进制文件和订阅地址，推荐使用智能安装模式：
+
+```bash
+# 克隆仓库
+git clone https://github.com/your-repo/tools.git
+cd tools/linux-clash-install
+
+# 将订阅地址保存到 ording-address 文件（可选）
+echo "您的订阅链接" > ording-address
+
+# 将下载的 mihomo 二进制文件重命名（可选）
+# 例如：mv mihomo-linux-amd64-v1.18.8.gz ./
+# 脚本会自动检测并使用本地文件，跳过下载
+
+# 运行安装脚本
+sudo bash clash-install.sh
+```
+
+### 2. 在线安装
 
 ```bash
 # 下载脚本
@@ -35,7 +57,7 @@ chmod +x clash-install.sh
 sudo ./clash-install.sh
 ```
 
-### 2. 本地安装
+### 3. 标准本地安装
 
 ```bash
 # 克隆仓库
@@ -44,6 +66,59 @@ cd tools/linux-clash-install
 
 # 运行安装脚本
 sudo bash clash-install.sh
+```
+
+## 智能安装功能详解
+
+### 本地二进制文件检测
+
+脚本会自动检测是否存在本地 mihomo 二进制文件：
+
+```bash
+# 支持的文件名格式（根据系统架构自动匹配）：
+mihomo-linux-amd64-v1.18.8.gz    # x86_64 系统
+mihomo-linux-arm64-v1.18.8.gz    # ARM64 系统  
+mihomo-linux-armv7-v1.18.8.gz    # ARMv7 系统
+```
+
+**使用方法：**
+1. 将下载的 mihomo 二进制文件放在脚本同目录
+2. 确保文件名格式正确
+3. 运行脚本时会自动检测并使用本地文件
+
+**优势：**
+- 🚀 跳过下载步骤，安装更快
+- 🌐 避免网络问题导致的下载失败
+- 📦 支持离线安装
+
+### 自动订阅配置
+
+脚本会自动读取 `ording-address` 文件中的订阅链接：
+
+```bash
+# 创建订阅地址文件
+echo "https://your-subscription-url" > ording-address
+
+# 脚本会自动：
+# 1. 读取订阅地址
+# 2. 验证URL格式  
+# 3. 写入配置文件
+# 4. 启用订阅更新
+```
+
+**支持格式：**
+- HTTP/HTTPS 订阅链接
+- 自动去除空格和换行符
+- 支持长URL（会自动处理）
+
+**配置效果：**
+```yaml
+proxy-providers:
+  default:
+    type: http
+    url: "您的订阅链接"    # 自动填入
+    interval: 86400
+    path: ./proxies/default.yaml
 ```
 
 ## 配置订阅
@@ -228,6 +303,12 @@ sudo systemctl daemon-reload
 3. 验证服务状态：`clash-ctl status`
 
 ## 最新更新 (2024-12-19)
+
+### 🚀 智能安装功能 (新增)
+- **本地文件检测**: 自动检测并使用本地 mihomo 二进制文件，跳过下载
+- **自动订阅配置**: 读取 `ording-address` 文件自动配置订阅链接
+- **离线安装支持**: 支持完全离线安装，无需网络连接
+- **智能架构匹配**: 根据系统架构自动匹配对应的二进制文件
 
 ### 🔧 网络连接性改进
 - **新增网络诊断脚本**: `network-diagnostic.sh` 用于排查网络连接问题
